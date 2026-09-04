@@ -1,0 +1,30 @@
+{
+    "balance": 1003.0,
+    "last_date": "2026-09-04",
+    "daily_trades_taken": 1,
+    "trades": [
+        {
+            "id": 1,
+            "time": "2026-09-04 17:51",
+            "coin": "BTC/USDT",
+            "entry_price": 81136.0,
+            "target_price": 82353.04,
+            "profit": 1.5,
+            "status": "PROFIT"
+        },
+        {
+            "id": 2,
+            "time": "2026-09-04 17:51",
+            "coin": "ETH/USDT",
+            "entry_price": 2520.45,
+            "target_price": 2558.26,
+            "profit": 1.5,
+            "status": "PROFIT"
+        }
+    ],
+    "subscription": {
+        "status": "ACTIVE",
+        "plan": "Pro Plan (\u20b9999/mo)",
+        "expires_on": "04 Oct 2026"
+    }
+}
