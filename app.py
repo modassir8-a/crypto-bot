@@ -3,10 +3,20 @@ import ccxt
 import json
 import os
 from datetime import datetime, timedelta
+import urllib.parse
 
 DB_FILE = 'trades.json'
 coins = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT']
 exchange = ccxt.binance()
+
+# Aapki UPI details
+MY_UPI_ID = "8406012453-2@ibl"
+PAYEE_NAME = "CryptoBot AI"
+PLAN_PRICE_INR = 999
+
+# Dynamic UPI Links
+upi_intent_url = f"upi://pay?pa={MY_UPI_ID}&pn={urllib.parse.quote(PAYEE_NAME)}&am={PLAN_PRICE_INR}&cu=INR&tn={urllib.parse.quote('30 Days Pro Plan')}"
+qr_image_url = f"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={urllib.parse.quote(upi_intent_url)}"
 
 # Database helpers
 def load_db():
@@ -22,7 +32,8 @@ def load_db():
         "daily_trades_taken": 0,
         "last_date": str(datetime.now().date()),
         "subscription": {"status": "ACTIVE", "plan": "Pro Plan (₹999/mo)", "expires_on": default_expiry},
-        "trades": []
+        "trades": [],
+        "payments": []
     }
 
 def save_db(data):
@@ -33,7 +44,6 @@ def save_db(data):
 def execute_bot_scan():
     db = load_db()
     
-    # Check Subscription
     if db.get("subscription", {}).get("status") != "ACTIVE":
         return {"status": "error", "message": "❌ Subscription Inactive! Bot chalane ke liye pehle plan activate karein."}
 
@@ -85,7 +95,7 @@ def execute_bot_scan():
     else:
         return {"status": "no_setup", "message": "Market scan kiya: Abhi kisi coin mein favorable setup nahi mila. Thodi der baad try karein!"}
 
-# HTML Dashboard Page
+# HTML Dashboard Page with Real UPI QR & Direct App Intent
 def get_html():
     data = load_db()
     balance = data.get("balance", 1000.0)
@@ -125,10 +135,10 @@ def get_html():
     <title>CryptoBot AI - Live Cloud Dashboard</title>
     <style>
         * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }}
-        body {{ background: #0b0f19; color: #f8fafc; padding: 28px 16px; }}
+        body {{ background: #0b0f19; color: #f8fafc; padding: 24px 16px; }}
         .container {{ max-width: 850px; margin: 0 auto; }}
         .sub-banner {{ background: linear-gradient(90deg, #1e1b4b, #31104b); border: 1px solid #6366f1; border-radius: 12px; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }}
-        .btn-sub {{ background: #4f46e5; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }}
+        .btn-sub {{ background: #4f46e5; color: white; border: none; padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }}
         .header {{ display: flex; justify-content: space-between; align-items: center; padding-bottom: 20px; border-bottom: 1px solid #1e293b; margin-bottom: 24px; }}
         .logo {{ font-size: 24px; font-weight: 700; color: #38bdf8; }}
         .badge {{ background: #064e3b; color: #34d399; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; border: 1px solid #059669; }}
@@ -150,12 +160,15 @@ def get_html():
         .trade-pnl {{ text-align: right; }}
         .pnl-amount {{ font-size: 17px; font-weight: 700; }}
 
-        .modal {{ display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; z-index: 100; }}
-        .modal-content {{ background: #1e293b; border: 1px solid #475569; border-radius: 16px; width: 90%; max-width: 440px; padding: 28px; text-align: center; }}
-        .price-tag {{ font-size: 36px; font-weight: 800; color: #38bdf8; margin: 16px 0; }}
-        .btn-pay {{ background: #10b981; color: white; border: none; width: 100%; padding: 14px; border-radius: 10px; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 18px; }}
-        .btn-pay:hover {{ background: #059669; }}
-        .btn-close {{ background: transparent; color: #94a3b8; border: none; margin-top: 12px; cursor: pointer; font-size: 13px; }}
+        /* Payment Modal */
+        .modal {{ display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); justify-content: center; align-items: center; z-index: 100; padding: 16px; }}
+        .modal-content {{ background: #1e293b; border: 1px solid #475569; border-radius: 16px; width: 100%; max-width: 420px; padding: 24px; text-align: center; }}
+        .qr-box {{ background: white; padding: 12px; border-radius: 12px; display: inline-block; margin: 12px 0; }}
+        .upi-text {{ font-size: 14px; color: #38bdf8; background: #0f172a; padding: 8px 12px; border-radius: 8px; margin-bottom: 12px; font-family: monospace; }}
+        .btn-upi-app {{ background: #059669; color: white; text-decoration: none; display: block; padding: 12px; border-radius: 8px; font-weight: 700; margin-bottom: 14px; }}
+        .input-utr {{ width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #475569; background: #0f172a; color: white; margin-bottom: 10px; text-align: center; }}
+        .btn-verify {{ background: #3b82f6; color: white; border: none; width: 100%; padding: 12px; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; }}
+        .btn-close {{ background: transparent; color: #94a3b8; border: none; margin-top: 10px; cursor: pointer; font-size: 13px; }}
     </style>
 </head>
 <body>
@@ -163,9 +176,9 @@ def get_html():
         <div class="sub-banner">
             <div>
                 <strong style="color: #a5b4fc; font-size: 15px;">👑 Pro Plan Subscription ({sub_status})</strong>
-                <p style="font-size: 12px; color: #cbd5e1; margin-top: 3px;">Expiry Date: {sub_expiry} • Max 2 trades/day • Auto-pilot</p>
+                <p style="font-size: 12px; color: #cbd5e1; margin-top: 3px;">Expiry Date: {sub_expiry} • Max 2 trades/day</p>
             </div>
-            <button class="btn-sub" onclick="openPaymentModal()">💳 Renew / Upgrade (₹999)</button>
+            <button class="btn-sub" onclick="openPaymentModal()">💳 Pay / Renew (₹999)</button>
         </div>
 
         <div class="header">
@@ -206,21 +219,27 @@ def get_html():
         </div>
     </div>
 
-    <!-- Payment Modal -->
+    <!-- Real UPI Payment Modal -->
     <div id="payModal" class="modal">
         <div class="modal-content">
-            <h2 style="color: #f8fafc; font-size: 20px;">Activate AI Trading Bot</h2>
-            <p style="font-size: 13px; color: #94a3b8; margin-top: 6px;">30 Days Unlimited Auto-Pilot Trading</p>
-            <div class="price-tag">₹999 <span style="font-size: 15px; color: #94a3b8; font-weight: 500;">/ month</span></div>
-            
-            <div style="background: #0f172a; padding: 14px; border-radius: 10px; font-size: 13px; text-align: left; margin: 12px 0;">
-                <p>✅ Daily 2 AI High-Probability Trades</p>
-                <p style="margin-top: 6px;">✅ Automated Stop-Loss & Target Rules</p>
-                <p style="margin-top: 6px;">✅ Supported: UPI (GPay, PhonePe, Paytm)</p>
+            <h2 style="font-size: 19px;">Pay ₹999 & Activate Pro Bot</h2>
+            <p style="font-size: 12px; color: #94a3b8; margin-top: 4px;">Google Pay • PhonePe • Paytm • Any UPI</p>
+
+            <div class="qr-box">
+                <img src="{qr_image_url}" alt="UPI QR Code" style="display:block; width: 180px; height: 180px;">
             </div>
 
-            <button class="btn-pay" onclick="simulatePayment()">✅ Pay ₹999 & Activate Now</button>
-            <button class="btn-close" onclick="closePaymentModal()">Cancel</button>
+            <div class="upi-text">UPI ID: {MY_UPI_ID}</div>
+
+            <a href="{upi_intent_url}" class="btn-upi-app">📱 Pay ₹999 via Any UPI App</a>
+
+            <div style="border-top: 1px solid #334155; padding-top: 12px; margin-top: 6px;">
+                <p style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">Payment ke baad 12-digit UTR No. enter karein:</p>
+                <input id="utrInput" type="text" class="input-utr" placeholder="e.g. 423567890123" maxlength="16">
+                <button class="btn-verify" onclick="submitPayment()">✅ Verify & Unlock Bot (30 Days)</button>
+            </div>
+
+            <button class="btn-close" onclick="closePaymentModal()">Close Window</button>
         </div>
     </div>
 
@@ -232,8 +251,13 @@ def get_html():
             document.getElementById('payModal').style.display = 'none';
         }}
         
-        async function simulatePayment() {{
-            const res = await fetch('/subscribe', {{ method: 'POST' }});
+        async function submitPayment() {{
+            const utr = document.getElementById('utrInput').value.trim();
+            const res = await fetch('/subscribe', {{
+                method: 'POST',
+                headers: {{ 'Content-Type': 'application/json' }},
+                body: JSON.stringify({{ utr: utr }})
+            }});
             const data = await res.json();
             alert(data.message);
             window.location.reload();
@@ -287,16 +311,14 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
-            msg = f"🎉 Payment Successful! ₹999 received.\nPro Plan activated till {expiry}!"
+            msg = f"🎉 Payment Verified! Pro Plan Activated till {expiry}."
             self.wfile.write(json.dumps({"status": "success", "message": msg}).encode('utf-8'))
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     server = HTTPServer(('0.0.0.0', port), DashboardHandler)
-    print("\n" + "=" * 45)
-    print(f"🚀 Cloud-Ready Server active on port {port}!")
-    print("=" * 45 + "\n")
+    print(f"🚀 Server active on port {port}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\nServer band kar diya gaya.")
+        print("Stopped")
