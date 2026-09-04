@@ -2,9 +2,6 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import ccxt
 import json
 import os
-import random
-import smtplib
-from email.mime.text import MIMEText
 from datetime import datetime, timedelta
 import urllib.parse
 
@@ -17,45 +14,8 @@ MY_UPI_ID = "8406012453-2@ibl"
 PAYEE_NAME = "CryptoBot AI"
 PLAN_PRICE_INR = 999
 
-# Google Mail Server Configuration (Real Inbox Email Delivery)
-GMAIL_SENDER = "mdm906581@gmail.com"
-GMAIL_APP_PASS = "zifqvfsvmvfbbxwn"
-
-def send_real_email_otp(recipient_email, otp):
-    subject = f"{otp} is your CryptoBot AI Verification Code"
-    body = f"""Hello,
-
-Welcome to CryptoBot AI Pro!
-
-Your 6-digit verification code is: {otp}
-
-This code is valid for 10 minutes. Please enter this code on the website to verify your account.
-Do not share this OTP with anyone.
-
-Best regards,
-CryptoBot AI Team
-"""
-    msg = MIMEText(body, 'plain', 'utf-8')
-    msg['Subject'] = subject
-    msg['From'] = f"CryptoBot AI <{GMAIL_SENDER}>"
-    msg['To'] = recipient_email
-
-    try:
-        # Connect securely to Google SMTP over SSL
-        server = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=12)
-        server.login(GMAIL_SENDER, GMAIL_APP_PASS)
-        server.sendmail(GMAIL_SENDER, recipient_email, msg.as_string())
-        server.quit()
-        return True, "Email successfully sent to inbox!"
-    except Exception as e:
-        print("SMTP Error:", str(e))
-        return False, str(e)
-
 upi_intent_url = f"upi://pay?pa={MY_UPI_ID}&pn={urllib.parse.quote(PAYEE_NAME)}&am={PLAN_PRICE_INR}&cu=INR&tn={urllib.parse.quote('30 Days Pro Plan')}"
 qr_image_url = f"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={urllib.parse.quote(upi_intent_url)}"
-
-# In-memory OTP storage
-otp_cache = {}
 
 # Database Helpers
 def load_db():
@@ -85,7 +45,8 @@ def load_db():
                 "expires_on": "Permanent"
             }
         },
-        "trades": []
+        "trades": [],
+        "payments": []
     }
 
 def save_db(data):
@@ -143,7 +104,7 @@ def execute_bot_scan():
     else:
         return {"status": "no_setup", "message": "Market scan kiya: Abhi kisi coin mein favorable setup nahi mila. Thodi der baad try karein!"}
 
-# HTML Dashboard Page
+# HTML Dashboard Page with Direct Auth
 def get_html():
     data = load_db()
     balance = data.get("balance", 1000.0)
@@ -206,7 +167,7 @@ def get_html():
 
         /* Auth Screen */
         #authOverlay {{ position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0b0f19; z-index: 99; display: flex; justify-content: center; align-items: center; padding: 16px; }}
-        .auth-card {{ background: #131b2e; border: 1px solid #334155; border-radius: 16px; padding: 28px 24px; width: 100%; max-width: 420px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); }}
+        .auth-card {{ background: #131b2e; border: 1px solid #334155; border-radius: 16px; padding: 28px 24px; width: 100%; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); }}
         .auth-tabs {{ display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid #334155; padding-bottom: 12px; }}
         .tab-btn {{ background: transparent; border: none; color: #94a3b8; font-size: 15px; font-weight: 700; cursor: pointer; padding-bottom: 4px; }}
         .tab-btn.active {{ color: #38bdf8; border-bottom: 2px solid #38bdf8; }}
@@ -233,7 +194,7 @@ def get_html():
 
             <div class="auth-tabs">
                 <button id="tabLoginBtn" class="tab-btn active" onclick="switchAuthTab('login')">🔑 Login</button>
-                <button id="tabSignupBtn" class="tab-btn" onclick="switchAuthTab('signup')">📝 Sign Up (Email OTP)</button>
+                <button id="tabSignupBtn" class="tab-btn" onclick="switchAuthTab('signup')">📝 Create Account</button>
             </div>
 
             <!-- Login Form -->
@@ -241,21 +202,14 @@ def get_html():
                 <input id="loginEmail" type="email" class="input-box" placeholder="Gmail Address (e.g. name@gmail.com)">
                 <input id="loginPassword" type="password" class="input-box" placeholder="Password">
                 <button class="btn-primary" onclick="handleLogin()">🚀 Login to Dashboard</button>
-                <p style="font-size: 11px; color: #64748b; margin-top: 12px; text-align: center;">Owner Demo: admin@cryptobot.com / admin123</p>
+                <p style="font-size: 11px; color: #64748b; margin-top: 12px; text-align: center;">Owner Login: admin@cryptobot.com / admin123</p>
             </div>
 
-            <!-- Sign Up Form (with Real Email OTP) -->
+            <!-- Direct Sign Up Form -->
             <div id="signupForm" style="display: none;">
-                <input id="signupEmail" type="email" class="input-box" placeholder="Enter Your Real Gmail Address">
+                <input id="signupEmail" type="email" class="input-box" placeholder="Enter Your Gmail Address">
                 <input id="signupPassword" type="password" class="input-box" placeholder="Create a Password">
-                
-                <button id="otpSendBtn" class="btn-primary" style="background: #4f46e5; margin-bottom: 12px;" onclick="sendSignupOTP()">📩 Send OTP to My Gmail Inbox</button>
-                
-                <div id="otpSection" style="display: none;">
-                    <p style="font-size: 12px; color: #34d399; margin-bottom: 6px;">Check your Gmail app for 6-digit OTP:</p>
-                    <input id="signupOTP" type="text" class="input-box" placeholder="Enter 6-digit OTP from Email" maxlength="6">
-                    <button class="btn-primary" style="background: #10b981;" onclick="verifyAndSignup()">✅ Verify OTP & Create Account</button>
-                </div>
+                <button class="btn-primary" style="background: #10b981;" onclick="handleDirectSignup()">✨ Create Account & Open Dashboard</button>
             </div>
         </div>
     </div>
@@ -378,44 +332,21 @@ def get_html():
             }}
         }}
 
-        async function sendSignupOTP() {{
+        async function handleDirectSignup() {{
             const email = document.getElementById('signupEmail').value.trim();
             const pass = document.getElementById('signupPassword').value.trim();
             if (!email || !pass) {{
-                alert('Please enter Email and Password first!');
+                alert('Please enter Email and Password!');
                 return;
             }}
-            const btn = document.getElementById('otpSendBtn');
-            btn.innerText = 'Sending to Gmail Inbox... ⏳';
-            btn.disabled = true;
-
-            const res = await fetch('/api/send-otp', {{
+            const res = await fetch('/api/signup', {{
                 method: 'POST',
                 headers: {{ 'Content-Type': 'application/json' }},
                 body: JSON.stringify({{ email: email, password: pass }})
             }});
             const data = await res.json();
-            alert(data.message);
-            btn.innerText = '📩 Resend OTP';
-            btn.disabled = false;
-            document.getElementById('otpSection').style.display = 'block';
-        }}
-
-        async function verifyAndSignup() {{
-            const email = document.getElementById('signupEmail').value.trim();
-            const otp = document.getElementById('signupOTP').value.trim();
-            if (!otp) {{
-                alert('Please enter the 6-digit OTP!');
-                return;
-            }}
-            const res = await fetch('/api/verify-otp', {{
-                method: 'POST',
-                headers: {{ 'Content-Type': 'application/json' }},
-                body: JSON.stringify({{ email: email, otp: otp }})
-            }});
-            const data = await res.json();
             if (data.status === 'success') {{
-                alert(data.message);
+                alert('🎉 Welcome! Account created successfully.');
                 localStorage.setItem('cryptobot_user_email', email);
                 showDashboard(email, 'ACTIVE (Welcome Trial)');
             }} else {{
@@ -508,42 +439,21 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps(res).encode('utf-8'))
 
-        elif self.path == '/api/send-otp':
+        elif self.path == '/api/signup':
             email = payload.get('email', '').strip().lower()
             password = payload.get('password', '').strip()
-            otp = str(random.randint(100000, 999999))
-            otp_cache[email] = {"otp": otp, "password": password}
-            
-            # Send real email via Google SMTP
-            success, msg_detail = send_real_email_otp(email, otp)
-            if success:
-                msg = f"📩 Verification OTP successfully aapke Gmail ({email}) par bhej diya gaya hai!\n\nApna Gmail app inbox check karein."
+            db = load_db()
+            if email in db.get("users", {}):
+                res = {"status": "error", "message": "Yeh Email pehle se registered hai! Kripya Login karein."}
             else:
-                # Fallback if connection issue
-                msg = f"OTP Sent!\nAapka OTP hai: {otp}\n(Note: {msg_detail})"
-
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps({"status": "success", "message": msg}).encode('utf-8'))
-
-        elif self.path == '/api/verify-otp':
-            email = payload.get('email', '').strip().lower()
-            otp = payload.get('otp', '').strip()
-            cached = otp_cache.get(email)
-            if cached and cached.get("otp") == otp:
-                db = load_db()
                 db.setdefault("users", {})[email] = {
-                    "password": cached.get("password"),
+                    "password": password,
                     "status": "ACTIVE",
                     "plan": "Pro Trial",
                     "created_on": str(datetime.now().date())
                 }
                 save_db(db)
-                del otp_cache[email]
-                res = {"status": "success", "message": "🎉 Email Verified! Account successfully ban gaya."}
-            else:
-                res = {"status": "error", "message": "❌ Galat OTP! Kripya dobara check karein."}
+                res = {"status": "success", "message": "Account created successfully!"}
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
