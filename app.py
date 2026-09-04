@@ -3,6 +3,8 @@ import ccxt
 import json
 import os
 import random
+import smtplib
+from email.mime.text import MIMEText
 from datetime import datetime, timedelta
 import urllib.parse
 
@@ -14,6 +16,40 @@ exchange = ccxt.binance()
 MY_UPI_ID = "8406012453-2@ibl"
 PAYEE_NAME = "CryptoBot AI"
 PLAN_PRICE_INR = 999
+
+# Google Mail Server Configuration (Real Inbox Email Delivery)
+GMAIL_SENDER = "mdm906581@gmail.com"
+GMAIL_APP_PASS = "zifqvfsvmvfbbxwn"
+
+def send_real_email_otp(recipient_email, otp):
+    subject = f"{otp} is your CryptoBot AI Verification Code"
+    body = f"""Hello,
+
+Welcome to CryptoBot AI Pro!
+
+Your 6-digit verification code is: {otp}
+
+This code is valid for 10 minutes. Please enter this code on the website to verify your account.
+Do not share this OTP with anyone.
+
+Best regards,
+CryptoBot AI Team
+"""
+    msg = MIMEText(body, 'plain', 'utf-8')
+    msg['Subject'] = subject
+    msg['From'] = f"CryptoBot AI <{GMAIL_SENDER}>"
+    msg['To'] = recipient_email
+
+    try:
+        # Connect securely to Google SMTP over SSL
+        server = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=12)
+        server.login(GMAIL_SENDER, GMAIL_APP_PASS)
+        server.sendmail(GMAIL_SENDER, recipient_email, msg.as_string())
+        server.quit()
+        return True, "Email successfully sent to inbox!"
+    except Exception as e:
+        print("SMTP Error:", str(e))
+        return False, str(e)
 
 upi_intent_url = f"upi://pay?pa={MY_UPI_ID}&pn={urllib.parse.quote(PAYEE_NAME)}&am={PLAN_PRICE_INR}&cu=INR&tn={urllib.parse.quote('30 Days Pro Plan')}"
 qr_image_url = f"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={urllib.parse.quote(upi_intent_url)}"
@@ -107,7 +143,7 @@ def execute_bot_scan():
     else:
         return {"status": "no_setup", "message": "Market scan kiya: Abhi kisi coin mein favorable setup nahi mila. Thodi der baad try karein!"}
 
-# HTML Dashboard Page with Full Login & OTP Flow
+# HTML Dashboard Page
 def get_html():
     data = load_db()
     balance = data.get("balance", 1000.0)
@@ -197,7 +233,7 @@ def get_html():
 
             <div class="auth-tabs">
                 <button id="tabLoginBtn" class="tab-btn active" onclick="switchAuthTab('login')">🔑 Login</button>
-                <button id="tabSignupBtn" class="tab-btn" onclick="switchAuthTab('signup')">📝 Sign Up (with OTP)</button>
+                <button id="tabSignupBtn" class="tab-btn" onclick="switchAuthTab('signup')">📝 Sign Up (Email OTP)</button>
             </div>
 
             <!-- Login Form -->
@@ -208,16 +244,16 @@ def get_html():
                 <p style="font-size: 11px; color: #64748b; margin-top: 12px; text-align: center;">Owner Demo: admin@cryptobot.com / admin123</p>
             </div>
 
-            <!-- Sign Up Form (with OTP) -->
+            <!-- Sign Up Form (with Real Email OTP) -->
             <div id="signupForm" style="display: none;">
-                <input id="signupEmail" type="email" class="input-box" placeholder="Your Gmail Address">
+                <input id="signupEmail" type="email" class="input-box" placeholder="Enter Your Real Gmail Address">
                 <input id="signupPassword" type="password" class="input-box" placeholder="Create a Password">
                 
-                <button id="otpSendBtn" class="btn-primary" style="background: #4f46e5; margin-bottom: 12px;" onclick="sendSignupOTP()">📩 Send OTP to Gmail</button>
+                <button id="otpSendBtn" class="btn-primary" style="background: #4f46e5; margin-bottom: 12px;" onclick="sendSignupOTP()">📩 Send OTP to My Gmail Inbox</button>
                 
                 <div id="otpSection" style="display: none;">
-                    <p style="font-size: 12px; color: #34d399; margin-bottom: 6px;">OTP sent! Enter 6-digit code below:</p>
-                    <input id="signupOTP" type="text" class="input-box" placeholder="Enter 6-digit OTP" maxlength="6">
+                    <p style="font-size: 12px; color: #34d399; margin-bottom: 6px;">Check your Gmail app for 6-digit OTP:</p>
+                    <input id="signupOTP" type="text" class="input-box" placeholder="Enter 6-digit OTP from Email" maxlength="6">
                     <button class="btn-primary" style="background: #10b981;" onclick="verifyAndSignup()">✅ Verify OTP & Create Account</button>
                 </div>
             </div>
@@ -300,7 +336,6 @@ def get_html():
     </div>
 
     <script>
-        // Check session
         window.addEventListener('DOMContentLoaded', () => {{
             const savedUser = localStorage.getItem('cryptobot_user_email');
             if (savedUser) {{
@@ -351,7 +386,7 @@ def get_html():
                 return;
             }}
             const btn = document.getElementById('otpSendBtn');
-            btn.innerText = 'Sending OTP... ⏳';
+            btn.innerText = 'Sending to Gmail Inbox... ⏳';
             btn.disabled = true;
 
             const res = await fetch('/api/send-otp', {{
@@ -382,7 +417,7 @@ def get_html():
             if (data.status === 'success') {{
                 alert(data.message);
                 localStorage.setItem('cryptobot_user_email', email);
-                showDashboard(email, 'INACTIVE (Subscribe to Trade)');
+                showDashboard(email, 'ACTIVE (Welcome Trial)');
             }} else {{
                 alert(data.message);
             }}
@@ -479,8 +514,14 @@ class DashboardHandler(BaseHTTPRequestHandler):
             otp = str(random.randint(100000, 999999))
             otp_cache[email] = {"otp": otp, "password": password}
             
-            # Message with OTP
-            msg = f"OTP Sent Successfully!\n\nAapka Verification OTP hai: {otp}\n(Ise niche enter karein)."
+            # Send real email via Google SMTP
+            success, msg_detail = send_real_email_otp(email, otp)
+            if success:
+                msg = f"📩 Verification OTP successfully aapke Gmail ({email}) par bhej diya gaya hai!\n\nApna Gmail app inbox check karein."
+            else:
+                # Fallback if connection issue
+                msg = f"OTP Sent!\nAapka OTP hai: {otp}\n(Note: {msg_detail})"
+
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
