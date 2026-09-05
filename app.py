@@ -73,7 +73,7 @@ def load_db():
     if "users" not in data:
         data["users"] = {}
 
-    # Permanently guarantee admin exists with admin123
+    # Guarantee admin account exists
     data["users"]["admin@cryptobot.com"] = {
         "password": "admin123",
         "status": "ACTIVE",
@@ -209,85 +209,6 @@ def get_html():
         </div>
         """
 
-    deposits_html = ""
-    withdrawals_html = ""
-    conversions_html = ""
-    all_wallet_html = ""
-    total_inr_deposit = 0.0
-    total_inr_withdrawn = 0.0
-
-    for w in data.get("wallet_activity", []):
-        cat = w.get("category", "")
-        amt_inr = float(w.get("amount_inr", 0.0))
-        if not amt_inr:
-            raw_amt = float(w.get("amount", 0.0))
-            amt_inr = abs(raw_amt) if "Deposit" in w.get("type", "") else raw_amt
-
-        if cat == "DEPOSIT" or "Deposit" in w.get("type", ""):
-            total_inr_deposit += abs(amt_inr)
-            status_text = w.get('status', 'Completed')
-            status_bg = "#064e3b" if status_text == "Completed" else ("#78350f" if "Pending" in status_text else "#7f1d1d")
-            status_color = "#34d399" if status_text == "Completed" else ("#fde047" if "Pending" in status_text else "#f87171")
-            card_markup = f"""
-            <div class="wallet-card">
-                <div>
-                    <div style="font-size: 13px; color: #f8fafc; font-weight: 600;">{w.get('date', '')}</div>
-                    <div style="font-size: 11px; color: #71717a; margin-top: 2px;">{w.get('time', '')}</div>
-                    <div style="font-size: 13px; color: #38bdf8; margin-top: 6px; font-weight: 600;">{w.get('type', 'INR Deposit')}</div>
-                </div>
-                <div style="text-align: right;">
-                    <div style="font-size: 16px; font-weight: 800; color: #34d399;">+₹{abs(amt_inr):,.2f}</div>
-                    <span class="status-badge" style="background:{status_bg}; color:{status_color};">{status_text}</span>
-                </div>
-            </div>
-            """
-            deposits_html += card_markup
-            all_wallet_html += card_markup
-
-        elif cat == "WITHDRAWAL" or "Withdrawal" in w.get("type", ""):
-            total_inr_withdrawn += abs(amt_inr)
-            card_markup = f"""
-            <div class="wallet-card">
-                <div>
-                    <div style="font-size: 13px; color: #f8fafc; font-weight: 600;">{w.get('date', '')}</div>
-                    <div style="font-size: 11px; color: #71717a; margin-top: 2px;">{w.get('time', '')}</div>
-                    <div style="font-size: 13px; color: #f87171; margin-top: 6px; font-weight: 600;">INR Withdrawal</div>
-                </div>
-                <div style="text-align: right;">
-                    <div style="font-size: 16px; font-weight: 800; color: #ef4444;">-₹{abs(amt_inr):,.2f}</div>
-                    <span class="status-badge">{w.get('status', 'Completed')}</span>
-                </div>
-            </div>
-            """
-            withdrawals_html += card_markup
-            all_wallet_html += card_markup
-
-        elif "Converted" in w.get("type", "") or cat == "CONVERSION":
-            card_markup = f"""
-            <div class="wallet-card">
-                <div>
-                    <div style="font-size: 13px; color: #f8fafc; font-weight: 600;">{w.get('date', '')}</div>
-                    <div style="font-size: 11px; color: #71717a; margin-top: 2px;">{w.get('time', '')}</div>
-                    <div style="font-size: 13px; color: #bef264; margin-top: 6px; font-weight: 600;">{w.get('type', '')}</div>
-                </div>
-                <div style="text-align: right;">
-                    <div style="font-size: 16px; font-weight: 800; color: #38bdf8;">Completed</div>
-                    <span class="status-badge">Instant Swap</span>
-                </div>
-            </div>
-            """
-            conversions_html += card_markup
-            all_wallet_html += card_markup
-
-    if not deposits_html:
-        deposits_html = '<div class="empty-state-box"><div class="empty-icon">📥</div><div class="empty-text">No Deposit History found</div></div>'
-
-    if not withdrawals_html:
-        withdrawals_html = '<div class="empty-state-box"><div class="empty-icon">📤</div><div class="empty-text">No Withdrawal History found</div></div>'
-
-    if not conversions_html:
-        conversions_html = '<div class="empty-state-box"><div class="empty-icon">🔄</div><div class="empty-text">No Conversion History found</div></div>'
-
     def render_plan_card(plan_id, pdata):
         return f"""
         <div class="card-plan">
@@ -412,7 +333,7 @@ def get_html():
         .btn-activate-plan.active-badge {{ background: #131b2e; color: #34d399; border: 1px solid #059669; cursor: default; }}
 
         .wallet-card {{ background: #0c1527; border: 1px solid #16233b; border-radius: 16px; padding: 18px 20px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }}
-        .status-badge {{ background: #064e3b; color: #34d399; border: 1px solid #059669; padding: 4px 12px; border-radius: 16px; font-size: 11px; font-weight: 700; display: inline-block; margin-top: 6px; }}
+        .status-badge {{ padding: 4px 12px; border-radius: 16px; font-size: 11px; font-weight: 700; display: inline-block; margin-top: 6px; }}
         .overview-summary {{ background: #0c1527; border: 1px solid #16233b; border-radius: 18px; padding: 18px; margin-bottom: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; text-align: center; }}
         .summary-label {{ font-size: 11px; color: #94a3b8; font-weight: 600; text-transform: uppercase; }}
         .summary-val {{ font-size: 18px; font-weight: 800; margin-top: 4px; }}
@@ -604,11 +525,11 @@ def get_html():
             <div class="wallet-actions-bar">
                 <button id="pillDeposit" class="wallet-action-pill active" onclick="switchWalletTab('deposit')">↙ DEPOSIT • INR ▾</button>
                 <button id="pillWithdraw" class="wallet-action-pill" onclick="switchWalletTab('withdraw')">↗ WITHDRAW • INR ▾</button>
-                <button id="pillConversion" class="wallet-action-pill active" onclick="switchWalletTab('conversion')">⇄ CONVERSION</button>
+                <button id="pillConversion" class="wallet-action-pill" onclick="switchWalletTab('conversion')">⇄ CONVERSION</button>
             </div>
 
             <!-- Sub-tab 1: Deposit INR -->
-            <div id="walletSubDeposit" style="display: none;">
+            <div id="walletSubDeposit">
                 <div class="step-indicator">
                     <span class="step-circle" id="stepCircle1">1</span> <span id="stepLabel1" style="color: #ffffff;">PAYMENT DETAILS</span> ────── <span class="step-circle" id="stepCircle2" style="background:#1e293b; color:#94a3b8;">2</span> <span id="stepLabel2">SUBMIT PROOF</span>
                 </div>
@@ -718,7 +639,7 @@ def get_html():
                 <div style="margin-top: 28px;">
                     <h3 style="font-size: 17px; font-weight: 800; color: #ffffff; margin-bottom: 14px;">Deposit History</h3>
                     <div id="personalDepositList">
-                        {deposits_html}
+                        <div class="empty-state-box"><div class="empty-icon">📥</div><div class="empty-text">No Deposit History found</div></div>
                     </div>
                 </div>
             </div>
@@ -745,7 +666,7 @@ def get_html():
                 <div style="margin-top: 28px;">
                     <h3 style="font-size: 17px; font-weight: 800; color: #ffffff; margin-bottom: 14px;">Withdrawal History</h3>
                     <div id="personalWithdrawList">
-                        {withdrawals_html}
+                        <div class="empty-state-box"><div class="empty-icon">📤</div><div class="empty-text">No Withdrawal History found</div></div>
                     </div>
                 </div>
             </div>
@@ -821,7 +742,7 @@ def get_html():
                 <div style="margin-top: 28px;">
                     <h3 style="font-size: 17px; font-weight: 800; color: #ffffff; margin-bottom: 14px;">Conversion History</h3>
                     <div id="personalConversionList">
-                        {conversions_html}
+                        <div class="empty-state-box"><div class="empty-icon">🔄</div><div class="empty-text">No Conversion History found</div></div>
                     </div>
                 </div>
             </div>
@@ -848,7 +769,7 @@ def get_html():
             </div>
 
             <div id="overviewListContainer">
-                {all_wallet_html}
+                <div class="empty-state-box"><div class="empty-icon">💼</div><div class="empty-text">No Wallet Activity found</div></div>
             </div>
         </div>
 
@@ -987,15 +908,13 @@ def get_html():
                     
                     if (isAdmin) {{
                         document.getElementById('navAdminPanel').style.display = 'inline-block';
-                        currentUsdtBal = {balance};
-                        currentInrBal = {inr_balance};
+                        currentUsdtBal = u.balance || 1000.0;
+                        currentInrBal = u.inr_balance || 0.0;
                         origValues.principal = '1000.00 USDT';
                         origValues.epnl = '+{balance - 1000.0:.2f}';
                         origValues.pnl = '+{balance - 1000.0:.2f} USDT';
-                        origValues.current = '{balance:.2f} USDT';
-                        origValues.header = '{balance:.2f} USDT';
-                        document.getElementById('dispTotalDeposit').innerText = '+₹{total_inr_deposit:,.2f}';
-                        document.getElementById('dispTotalWithdrawal').innerText = '-₹{total_inr_withdrawn:,.2f}';
+                        origValues.current = currentUsdtBal.toFixed(2) + ' USDT';
+                        origValues.header = currentUsdtBal.toFixed(2) + ' USDT';
                     }} else {{
                         document.getElementById('navAdminPanel').style.display = 'none';
                         currentUsdtBal = u.balance || 0.0;
@@ -1009,13 +928,6 @@ def get_html():
                         const rows = document.querySelectorAll('.trade-card-split');
                         rows.forEach(r => r.style.display = 'none');
                         document.getElementById('emptyTradesState').style.display = 'block';
-
-                        document.getElementById('personalDepositList').innerHTML = '<div class="empty-state-box"><div class="empty-icon">📥</div><div class="empty-text">No Deposit History found</div></div>';
-                        document.getElementById('personalWithdrawList').innerHTML = '<div class="empty-state-box"><div class="empty-icon">📤</div><div class="empty-text">No Withdrawal History found</div></div>';
-                        document.getElementById('personalConversionList').innerHTML = '<div class="empty-state-box"><div class="empty-icon">🔄</div><div class="empty-text">No Conversion History found</div></div>';
-                        document.getElementById('overviewListContainer').innerHTML = '<div class="empty-state-box"><div class="empty-icon">💼</div><div class="empty-text">No Wallet Activity found</div></div>';
-                        document.getElementById('dispTotalDeposit').innerText = '+₹0.00';
-                        document.getElementById('dispTotalWithdrawal').innerText = '-₹0.00';
                     }}
 
                     document.getElementById('dispPrincipal').innerHTML = origValues.principal.replace('USDT', '<span style="font-size: 10px; color:#64748b;">USDT</span>');
@@ -1026,6 +938,9 @@ def get_html():
                     document.getElementById('walletUsdtBalDisplay').innerText = currentUsdtBal.toFixed(2);
                     document.getElementById('fromAvailableDisplay').innerText = currentUsdtBal.toFixed(4) + ' USDT';
                     document.getElementById('toAvailableDisplay').innerText = '₹ ' + currentInrBal.toFixed(4) + ' INR';
+
+                    // Dynamic Personal Wallet Activity Render
+                    renderPersonalActivity(data.activity || []);
 
                     const activePlan = u.plan;
                     const daysLeft = u.days_left || 0;
@@ -1041,6 +956,88 @@ def get_html():
             }} catch(e) {{
                 console.error(e);
             }}
+        }}
+
+        function renderPersonalActivity(activityList) {{
+            let depHtml = '';
+            let withHtml = '';
+            let convHtml = '';
+            let allHtml = '';
+            let totalDep = 0.0;
+            let totalWith = 0.0;
+
+            activityList.forEach(w => {{
+                const cat = w.category || '';
+                const amtInr = Math.abs(parseFloat(w.amount_inr || 0.0));
+                const st = w.status || 'Completed';
+                
+                let stBg = '#064e3b';
+                let stColor = '#34d399';
+                if (st.includes('Pending')) {{
+                    stBg = '#78350f';
+                    stColor = '#fde047';
+                }} else if (st === 'Rejected') {{
+                    stBg = '#7f1d1d';
+                    stColor = '#f87171';
+                }}
+
+                if (cat === 'DEPOSIT' || (w.type && w.type.includes('Deposit'))) {{
+                    if (st === 'Completed') totalDep += amtInr;
+                    const markup = `
+                    <div class="wallet-card">
+                        <div>
+                            <div style="font-size: 13px; color: #f8fafc; font-weight: 600;">${{w.date || ''}}</div>
+                            <div style="font-size: 11px; color: #71717a; margin-top: 2px;">${{w.time || ''}}</div>
+                            <div style="font-size: 13px; color: #38bdf8; margin-top: 6px; font-weight: 600;">${{w.type || 'INR Deposit'}}</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 16px; font-weight: 800; color: #34d399;">+₹${{amtInr.toLocaleString('en-IN', {{minimumFractionDigits: 2}})}}</div>
+                            <span class="status-badge" style="background: ${{stBg}}; color: ${{stColor}};">${{st}}</span>
+                        </div>
+                    </div>`;
+                    depHtml += markup;
+                    allHtml += markup;
+                }} else if (cat === 'WITHDRAWAL' || (w.type && w.type.includes('Withdrawal'))) {{
+                    if (st === 'Completed') totalWith += amtInr;
+                    const markup = `
+                    <div class="wallet-card">
+                        <div>
+                            <div style="font-size: 13px; color: #f8fafc; font-weight: 600;">${{w.date || ''}}</div>
+                            <div style="font-size: 11px; color: #71717a; margin-top: 2px;">${{w.time || ''}}</div>
+                            <div style="font-size: 13px; color: #f87171; margin-top: 6px; font-weight: 600;">INR Withdrawal</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 16px; font-weight: 800; color: #ef4444;">-₹${{amtInr.toLocaleString('en-IN', {{minimumFractionDigits: 2}})}}</div>
+                            <span class="status-badge" style="background: ${{stBg}}; color: ${{stColor}};">${{st}}</span>
+                        </div>
+                    </div>`;
+                    withHtml += markup;
+                    allHtml += markup;
+                }} else if (cat === 'CONVERSION' || (w.type && w.type.includes('Converted'))) {{
+                    const markup = `
+                    <div class="wallet-card">
+                        <div>
+                            <div style="font-size: 13px; color: #f8fafc; font-weight: 600;">${{w.date || ''}}</div>
+                            <div style="font-size: 11px; color: #71717a; margin-top: 2px;">${{w.time || ''}}</div>
+                            <div style="font-size: 13px; color: #bef264; margin-top: 6px; font-weight: 600;">${{w.type || ''}}</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 16px; font-weight: 800; color: #38bdf8;">Completed</div>
+                            <span class="status-badge" style="background: #064e3b; color: #34d399;">Instant Swap</span>
+                        </div>
+                    </div>`;
+                    convHtml += markup;
+                    allHtml += markup;
+                }}
+            }});
+
+            document.getElementById('personalDepositList').innerHTML = depHtml || '<div class="empty-state-box"><div class="empty-icon">📥</div><div class="empty-text">No Deposit History found</div></div>';
+            document.getElementById('personalWithdrawList').innerHTML = withHtml || '<div class="empty-state-box"><div class="empty-icon">📤</div><div class="empty-text">No Withdrawal History found</div></div>';
+            document.getElementById('personalConversionList').innerHTML = convHtml || '<div class="empty-state-box"><div class="empty-icon">🔄</div><div class="empty-text">No Conversion History found</div></div>';
+            document.getElementById('overviewListContainer').innerHTML = allHtml || '<div class="empty-state-box"><div class="empty-icon">💼</div><div class="empty-text">No Wallet Activity found</div></div>';
+
+            document.getElementById('dispTotalDeposit').innerText = '+₹' + totalDep.toLocaleString('en-IN', {{minimumFractionDigits: 2}});
+            document.getElementById('dispTotalWithdrawal').innerText = '-₹' + totalWith.toLocaleString('en-IN', {{minimumFractionDigits: 2}});
         }}
 
         function copyText(text) {{
@@ -1519,7 +1516,6 @@ def get_html():
                 window.location.reload();
             }} else {{
                 alert(data.message);
-                // Switch to login tab automatically and prefill email
                 switchAuthTab('login');
                 document.getElementById('loginEmail').value = email;
                 document.getElementById('loginPassword').value = '';
@@ -1607,7 +1603,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
             db = load_db()
             users = db.setdefault("users", {})
 
-            # Block duplicate signup and warn user
             if email in users or email == 'admin@cryptobot.com':
                 res = {"status": "error", "message": "⚠️ You have already signed up with this email! Please log in."}
             else:
@@ -1639,6 +1634,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
         elif self.path == '/api/user-status':
             email = payload.get('email', '').strip().lower()
             db = load_db()
+            
+            # Fetch personal activity for this user
+            user_activity = [w for w in db.get("wallet_activity", []) if w.get("email", "").lower() == email]
+
             if email == 'admin@cryptobot.com':
                 user = {
                     "plan": "PREMIUM",
@@ -1647,6 +1646,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     "inr_balance": db.get("inr_balance", 0.0),
                     "is_admin": True
                 }
+                # Admin can view all activities
+                user_activity = db.get("wallet_activity", [])
             else:
                 user = db.get("users", {}).get(email, {
                     "plan": "NONE",
@@ -1655,10 +1656,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     "inr_balance": 0.0,
                     "is_admin": False
                 })
+
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
-            self.wfile.write(json.dumps({"status": "success", "user": user}).encode('utf-8'))
+            self.wfile.write(json.dumps({"status": "success", "user": user, "activity": user_activity}).encode('utf-8'))
 
         elif self.path == '/api/deposit-inr':
             db = load_db()
@@ -1669,7 +1671,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             now = datetime.now()
 
             req_id = f"dep_{int(time.time())}"
-            db.setdefault("wallet_activity", []).insert(0, {
+            new_dep = {
                 "id": req_id,
                 "email": email,
                 "sender_name": sender_name,
@@ -1680,7 +1682,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 "amount_inr": amount_inr,
                 "utr": utr,
                 "status": "Pending Verification"
-            })
+            }
+            db.setdefault("wallet_activity", []).insert(0, new_dep)
             save_db(db)
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
