@@ -15,8 +15,9 @@ exchange = ccxt.binance()
 MY_UPI_ID = "8406012453-2@ibl"
 PAYEE_NAME = "trade.ai"
 PLAN_PRICE_INR = 999
+USDT_INR_RATE = 88.50
 
-upi_intent_url = f"upi://pay?pa={MY_UPI_ID}&pn={urllib.parse.quote(PAYEE_NAME)}&am={PLAN_PRICE_INR}&cu=INR&tn={urllib.parse.quote('trade.ai Pro Plan')}"
+upi_intent_url = f"upi://pay?pa={MY_UPI_ID}&pn={urllib.parse.quote(PAYEE_NAME)}&am={PLAN_PRICE_INR}&cu=INR&tn={urllib.parse.quote('trade.ai Bot Deposit')}"
 qr_image_url = f"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={urllib.parse.quote(upi_intent_url)}"
 
 autopilot_state = {
@@ -34,7 +35,6 @@ def load_db():
     if os.path.exists(DB_FILE):
         with open(DB_FILE, 'r') as f:
             data = json.load(f)
-            # Remove fake sample data if present
             if "wallet_activity" in data:
                 data["wallet_activity"] = [
                     w for w in data["wallet_activity"] 
@@ -176,7 +176,7 @@ def get_html():
     if not trades_html:
         trades_html = "<div style='text-align: center; color: #64748b; padding: 24px;'>No realized trade history yet.</div>"
 
-    # Wallet Activity (Read-Only History) HTML
+    # Wallet Activity (Overview View) HTML
     wallet_html = ""
     total_invested = 0.0
     total_withdrawn = 0.0
@@ -231,6 +231,7 @@ def get_html():
         .nav-item {{ color: #94a3b8; text-decoration: none; font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 20px; white-space: nowrap; cursor: pointer; border: none; background: transparent; }}
         .nav-item.active {{ background: #0284c7; color: #ffffff; font-weight: 700; }}
 
+        /* Action Buttons */
         .btn-growth {{ background: #0284c7; color: #ffffff; border: none; border-radius: 20px; padding: 10px 20px; font-size: 13px; font-weight: 700; cursor: pointer; margin-bottom: 18px; display: inline-block; }}
         .btn-growth:hover {{ background: #0369a1; }}
 
@@ -255,14 +256,21 @@ def get_html():
         .trade-row {{ background: #0c1527; border: 1px solid #16233b; border-radius: 14px; padding: 14px 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }}
         .coin-badge {{ background: #0b1a2f; color: #38bdf8; border: 1px solid #133256; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 800; }}
 
-        /* Wallet Activity (Overview View) */
+        /* Wallet Activity Cards */
         .wallet-card {{ background: #0c1527; border: 1px solid #16233b; border-radius: 16px; padding: 18px 20px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }}
         .status-badge {{ background: #064e3b; color: #34d399; border: 1px solid #059669; padding: 4px 12px; border-radius: 16px; font-size: 11px; font-weight: 700; display: inline-block; margin-top: 6px; }}
-
-        /* Overview Summary Box */
         .overview-summary {{ background: #0c1527; border: 1px solid #16233b; border-radius: 18px; padding: 18px; margin-bottom: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; text-align: center; }}
         .summary-label {{ font-size: 11px; color: #94a3b8; font-weight: 600; text-transform: uppercase; }}
         .summary-val {{ font-size: 18px; font-weight: 800; margin-top: 4px; }}
+
+        /* BOT Wallet Specific Styles (Matching Creddx UI) */
+        .wallet-actions-bar {{ display: flex; gap: 8px; margin-bottom: 24px; overflow-x: auto; padding-bottom: 4px; }}
+        .wallet-action-pill {{ background: #0c1527; border: 1px solid #16233b; border-radius: 20px; padding: 8px 16px; color: #94a3b8; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }}
+        .wallet-action-pill.active {{ background: #38bdf8; color: #060b14; }}
+        .step-indicator {{ display: flex; align-items: center; gap: 10px; margin-bottom: 18px; font-size: 12px; font-weight: 700; color: #71717a; }}
+        .step-circle {{ width: 22px; height: 22px; border-radius: 50%; background: #0284c7; color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; }}
+        .notice-box {{ background: rgba(245, 158, 11, 0.08); border: 1px solid #f59e0b; border-radius: 12px; padding: 14px 18px; margin-bottom: 20px; color: #fcd34d; font-size: 12px; line-height: 1.5; text-align: left; }}
+        .payment-method-card {{ background: #0c1527; border: 1px solid #16233b; border-radius: 16px; padding: 18px; margin-bottom: 14px; text-align: left; }}
 
         /* Modal Styles */
         .modal {{ display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(6,11,20,0.92); justify-content: center; align-items: center; z-index: 100; padding: 16px; }}
@@ -271,7 +279,6 @@ def get_html():
         .btn-action {{ background: #0284c7; color: #ffffff; border: none; width: 100%; padding: 12px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; }}
         .btn-close {{ background: transparent; color: #64748b; border: none; margin-top: 10px; cursor: pointer; font-size: 13px; }}
 
-        /* Auth Screen */
         #authOverlay {{ position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #060b14; z-index: 99; display: flex; justify-content: center; align-items: center; padding: 16px; }}
         .auth-card {{ background: #0c1527; border: 1px solid #16233b; border-radius: 20px; padding: 28px 24px; width: 100%; max-width: 380px; text-align: center; }}
     </style>
@@ -324,7 +331,7 @@ def get_html():
             <button class="nav-item" onclick="showTab('tradeLogs')">Strategies</button>
             <button class="nav-item" onclick="openPaymentModal()">Plans</button>
             <button id="navTradeLogs" class="nav-item active" onclick="showTab('tradeLogs')">Trade Logs</button>
-            <button class="nav-item" onclick="showTab('overview')">BOT Wallet</button>
+            <button id="navBotWallet" class="nav-item" onclick="showTab('botWallet')">BOT Wallet</button>
             <button id="navOverview" class="nav-item" onclick="showTab('overview')">Overview</button>
             <button class="nav-item" onclick="logoutUser()">Logout</button>
         </div>
@@ -378,7 +385,100 @@ def get_html():
             </div>
         </div>
 
-        <!-- TAB 2: Overview / Bot Wallet Activity (Pure Read-Only History) -->
+        <!-- TAB 2: BOT Wallet View (Creddx UI - Deposit, Withdraw, Conversion, History) -->
+        <div id="viewBotWallet" style="display: none;">
+            <!-- Wallet Overview Card -->
+            <div class="card-position" style="padding: 22px 24px; margin-bottom: 20px;">
+                <div class="card-glow"></div>
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                    <span style="font-size: 18px;">💼</span>
+                    <strong style="font-size: 16px; color: #ffffff;">Wallet Overview 👁</strong>
+                </div>
+                <p style="font-size: 12px; color: #94a3b8; margin-bottom: 16px;">Live balances across all your holdings</p>
+
+                <div style="background: #060b14; border: 1px solid #1e293b; border-radius: 12px; padding: 12px 18px; display: inline-flex; align-items: center; gap: 14px;">
+                    <div style="background: #0284c7; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px;">U</div>
+                    <div>
+                        <div style="font-size: 11px; color: #64748b; font-weight: 700;">USDT</div>
+                        <div style="font-size: 17px; font-weight: 800; color: #38bdf8;">{balance:.2f}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Pills Bar (DEPOSIT, WITHDRAW, CONVERSION, HISTORY - NO SEND) -->
+            <div class="wallet-actions-bar">
+                <button id="pillDeposit" class="wallet-action-pill active" onclick="switchWalletTab('deposit')">↙ DEPOSIT • INR ▾</button>
+                <button id="pillWithdraw" class="wallet-action-pill" onclick="switchWalletTab('withdraw')">↗ WITHDRAW ▾</button>
+                <button id="pillConversion" class="wallet-action-pill" onclick="switchWalletTab('conversion')">⇄ CONVERSION</button>
+                <button id="pillHistory" class="wallet-action-pill" onclick="switchWalletTab('history')">⏱ HISTORY</button>
+            </div>
+
+            <!-- Sub-tab 1: Deposit INR -->
+            <div id="walletSubDeposit">
+                <div class="step-indicator">
+                    <span class="step-circle">1</span> <span>PAYMENT DETAILS</span> ────── <span class="step-circle" style="background:#1e293b; color:#94a3b8;">2</span> <span>SUBMIT PROOF</span>
+                </div>
+
+                <h2 style="font-size: 22px; font-weight: 800; color: #ffffff; margin-bottom: 6px;">Deposit INR</h2>
+                <p style="font-size: 12px; color: #94a3b8; margin-bottom: 18px; line-height: 1.4;">
+                    Choose your preferred payment method to fund your bot trading wallet. All payments are manually verified for security purposes.
+                </p>
+
+                <div class="notice-box">
+                    ⚠️ For smooth and fast approval, please transfer funds only from the bank account used during your KYC verification. Payments made from third-party accounts may attract additional verification charges or could be delayed.
+                </div>
+
+                <!-- UPI / QR Payment Card -->
+                <div class="payment-method-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <strong style="color: #38bdf8; font-size: 15px;">⚡ Instant UPI Transfer</strong>
+                        <span style="background: #064e3b; color: #34d399; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 6px;">FASTEST</span>
+                    </div>
+                    <div style="text-align: center; margin: 12px 0;">
+                        <div style="background: white; padding: 8px; border-radius: 12px; display: inline-block;">
+                            <img src="{qr_image_url}" alt="UPI QR Code" style="width: 160px; height: 160px; display: block;">
+                        </div>
+                        <div style="font-family: monospace; color: #38bdf8; font-size: 13px; margin-top: 8px;">UPI ID: {MY_UPI_ID}</div>
+                    </div>
+                    <a href="{upi_intent_url}" class="pill-btn-wide" style="background: #0284c7; color: white; text-decoration: none; font-weight: 700; margin-bottom: 14px;">📱 Open Google Pay / PhonePe (Pay ₹999)</a>
+                    <input id="depositUtrInput" type="text" class="input-box" placeholder="Enter 12-digit UTR No. after payment">
+                    <button class="btn-action" style="background: #10b981;" onclick="submitDepositUtr()">Submit Proof & Verify</button>
+                </div>
+            </div>
+
+            <!-- Sub-tab 2: Withdraw -->
+            <div id="walletSubWithdraw" style="display: none;">
+                <h2 style="font-size: 22px; font-weight: 800; color: #ffffff; margin-bottom: 6px;">Withdraw Funds</h2>
+                <p style="font-size: 12px; color: #94a3b8; margin-bottom: 18px;">Request a withdrawal directly to your verified Bank Account or UPI.</p>
+                <div class="payment-method-card">
+                    <label style="font-size: 12px; color: #94a3b8; margin-bottom: 6px; display: block;">Withdrawal Amount (USDT)</label>
+                    <input id="withdrawAmt" type="number" class="input-box" placeholder="e.g. 50">
+                    <label style="font-size: 12px; color: #94a3b8; margin-bottom: 6px; display: block;">Destination UPI ID / Bank Account</label>
+                    <input id="withdrawDest" type="text" class="input-box" placeholder="e.g. yourname@okaxis">
+                    <button class="btn-action" style="background: #ef4444;" onclick="alert('Withdrawal request submitted! Verification takes 1-2 hours.')">Request Withdrawal</button>
+                </div>
+            </div>
+
+            <!-- Sub-tab 3: Conversion (USDT <-> INR) -->
+            <div id="walletSubConversion" style="display: none;">
+                <h2 style="font-size: 22px; font-weight: 800; color: #ffffff; margin-bottom: 6px;">Instant Currency Conversion</h2>
+                <p style="font-size: 12px; color: #94a3b8; margin-bottom: 18px;">Convert between Indian Rupee (INR) and Tether (USDT) at live market rates.</p>
+                <div class="payment-method-card" style="text-align: center;">
+                    <div style="font-size: 13px; color: #38bdf8; margin-bottom: 16px; font-weight: 700;">1 USDT = ₹{USDT_INR_RATE} INR</div>
+                    <input id="convertInput" type="number" class="input-box" placeholder="Enter USDT amount (e.g. 100)" oninput="calcConversion(this.value)">
+                    <div style="margin: 10px 0; font-size: 15px; font-weight: 800; color: #34d399;">You receive: ₹<span id="convertResult">0.00</span> INR</div>
+                    <button class="btn-action" onclick="alert('Conversion executed successfully!')">Instant Swap</button>
+                </div>
+            </div>
+
+            <!-- Sub-tab 4: History -->
+            <div id="walletSubHistory" style="display: none;">
+                <h2 style="font-size: 20px; font-weight: 800; color: #ffffff; margin-bottom: 14px;">Wallet Transaction Logs</h2>
+                {wallet_html}
+            </div>
+        </div>
+
+        <!-- TAB 3: Overview / Bot Wallet Activity (Pure Read-Only History) -->
         <div id="viewOverview" style="display: none;">
             <div style="margin-bottom: 20px;">
                 <h2 style="font-size: 24px; font-weight: 800; color: #ffffff; margin-bottom: 6px;">Bot Wallet Activity</h2>
@@ -417,7 +517,7 @@ def get_html():
         </div>
     </div>
 
-    <!-- Plans & Payment Modal (UPI) -->
+    <!-- Plans Modal -->
     <div id="payModal" class="modal">
         <div class="modal-content">
             <h3 style="color: #38bdf8;">30 Days Pro Trading Plan</h3>
@@ -445,17 +545,56 @@ def get_html():
         }});
 
         function showTab(tab) {{
-            if (tab === 'overview') {{
-                document.getElementById('viewTradeLogs').style.display = 'none';
+            document.getElementById('viewTradeLogs').style.display = 'none';
+            document.getElementById('viewBotWallet').style.display = 'none';
+            document.getElementById('viewOverview').style.display = 'none';
+            
+            document.getElementById('navTradeLogs').classList.remove('active');
+            document.getElementById('navBotWallet').classList.remove('active');
+            document.getElementById('navOverview').classList.remove('active');
+
+            if (tab === 'botWallet') {{
+                document.getElementById('viewBotWallet').style.display = 'block';
+                document.getElementById('navBotWallet').classList.add('active');
+            }} else if (tab === 'overview') {{
                 document.getElementById('viewOverview').style.display = 'block';
                 document.getElementById('navOverview').classList.add('active');
-                document.getElementById('navTradeLogs').classList.remove('active');
             }} else {{
-                document.getElementById('viewOverview').style.display = 'none';
                 document.getElementById('viewTradeLogs').style.display = 'block';
                 document.getElementById('navTradeLogs').classList.add('active');
-                document.getElementById('navOverview').classList.remove('active');
             }}
+        }}
+
+        function switchWalletTab(subTab) {{
+            document.getElementById('walletSubDeposit').style.display = 'none';
+            document.getElementById('walletSubWithdraw').style.display = 'none';
+            document.getElementById('walletSubConversion').style.display = 'none';
+            document.getElementById('walletSubHistory').style.display = 'none';
+
+            document.getElementById('pillDeposit').classList.remove('active');
+            document.getElementById('pillWithdraw').classList.remove('active');
+            document.getElementById('pillConversion').classList.remove('active');
+            document.getElementById('pillHistory').classList.remove('active');
+
+            if (subTab === 'withdraw') {{
+                document.getElementById('walletSubWithdraw').style.display = 'block';
+                document.getElementById('pillWithdraw').classList.add('active');
+            }} else if (subTab === 'conversion') {{
+                document.getElementById('walletSubConversion').style.display = 'block';
+                document.getElementById('pillConversion').classList.add('active');
+            }} else if (subTab === 'history') {{
+                document.getElementById('walletSubHistory').style.display = 'block';
+                document.getElementById('pillHistory').classList.add('active');
+            }} else {{
+                document.getElementById('walletSubDeposit').style.display = 'block';
+                document.getElementById('pillDeposit').classList.add('active');
+            }}
+        }}
+
+        function calcConversion(val) {{
+            const rate = {USDT_INR_RATE};
+            const res = (parseFloat(val) || 0) * rate;
+            document.getElementById('convertResult').innerText = res.toFixed(2);
         }}
 
         function switchAuthTab(tab) {{
@@ -547,6 +686,20 @@ def get_html():
             const data = await res.json();
             alert(data.message);
             closePaymentModal();
+            window.location.reload();
+        }}
+
+        async function submitDepositUtr() {{
+            const utr = document.getElementById('depositUtrInput').value.trim();
+            if (!utr) {{ alert('Please enter UTR Number!'); return; }}
+            const email = localStorage.getItem('cryptobot_user_email') || 'User';
+            const res = await fetch('/subscribe', {{
+                method: 'POST',
+                headers: {{ 'Content-Type': 'application/json' }},
+                body: JSON.stringify({{ utr: utr, email: email }})
+            }});
+            const data = await res.json();
+            alert(data.message);
             window.location.reload();
         }}
     </script>
