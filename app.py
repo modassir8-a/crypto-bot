@@ -40,7 +40,7 @@ def load_db():
                         "plan": "Lifetime Owner",
                         "expires_on": "Permanent",
                         "profile": {
-                            "name": "Admin Owner",
+                            "name": "Modassir",
                             "phone": "+91 8406012453",
                             "country": "India 🇮🇳",
                             "risk": "Moderate (1.5%)",
@@ -60,7 +60,7 @@ def load_db():
                 "plan": "Lifetime Owner",
                 "expires_on": "Permanent",
                 "profile": {
-                    "name": "Admin Owner",
+                    "name": "Modassir",
                     "phone": "+91 8406012453",
                     "country": "India 🇮🇳",
                     "risk": "Moderate (1.5%)",
@@ -112,10 +112,11 @@ def execute_bot_scan(source="Manual"):
             profit_made = profit
             db["balance"] += profit
 
+            clean_coin_name = coin.replace('/', '-')
             new_trade = {
                 "id": len(db["trades"]) + 1,
                 "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                "coin": coin,
+                "coin": clean_coin_name,
                 "entry_price": round(buy_price, 2),
                 "target_price": round(target_price, 2),
                 "profit": round(profit, 2),
@@ -138,291 +139,251 @@ def execute_bot_scan(source="Manual"):
 
 # 24/7 Background Thread Worker (Scans every 15 minutes)
 def background_autopilot_worker():
-    print("🤖 24/7 Background Auto-Pilot Thread Started!")
-    # Initial scan after 10 seconds of startup
     time.sleep(10)
     while True:
         try:
             if autopilot_state.get("enabled", True):
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] 🤖 Auto-Pilot Scanning Live Binance...")
                 execute_bot_scan(source="Auto-Pilot")
         except Exception as e:
             print("Auto-pilot scan error:", str(e))
-        # Sleep for 15 minutes (900 seconds)
         time.sleep(900)
 
-# Start background thread automatically
 threading.Thread(target=background_autopilot_worker, daemon=True).start()
 
-# HTML Dashboard Page
+# HTML Dashboard Page (Creddx.ai UI)
 def get_html():
     data = load_db()
     balance = data.get("balance", 1000.0)
-    daily_count = data.get("daily_trades_taken", 0)
     profit = balance - 1000.0
-    profit_pct = (profit / 1000.0) * 100
-    profit_color = "#10b981" if profit >= 0 else "#ef4444"
     profit_sign = "+" if profit >= 0 else ""
 
     trades_html = ""
     for t in reversed(data.get("trades", [])):
+        c = t.get('coin', '').replace('/', '-')
         trades_html += f"""
-        <div class="trade-card">
-            <div>
-                <div class="coin-name">🟢 {t['coin']} <span style="font-size: 11px; background: #064e3b; color: #34d399; padding: 2px 8px; border-radius: 6px;">{t.get('status', 'CLOSED')}</span></div>
-                <div class="coin-details">Time: {t.get('time', 'N/A')} • Entry: ${t.get('entry_price')} • Target: ${t.get('target_price')}</div>
+        <div class="trade-row" data-coin="{c}">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <span class="coin-badge">{c}</span>
+                <div>
+                    <strong style="color: #f8fafc; font-size: 14px;">Entry: ${t.get('entry_price')}</strong>
+                    <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Target: ${t.get('target_price')} • {t.get('time', '')}</div>
+                </div>
             </div>
-            <div class="trade-pnl">
-                <div class="pnl-amount text-green">+${t.get('profit', 0):.2f} USDT</div>
-                <div class="coin-details">+1.5% Profit</div>
+            <div style="text-align: right;">
+                <div style="color: #bef264; font-size: 15px; font-weight: 700;">+{t.get('profit', 0):.2f} USDT</div>
+                <div style="color: #34d399; font-size: 11px; font-weight: 600;">PROFIT (+1.5%)</div>
             </div>
         </div>
         """
 
     if not trades_html:
-        trades_html = "<div class='card' style='text-align: center; color: #94a3b8;'>Abhi tak koi trade record nahi hai. Auto-Pilot market scan kar raha hai!</div>"
+        trades_html = "<div style='text-align: center; color: #64748b; padding: 24px;'>No realized trade history yet.</div>"
 
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CryptoBot AI - 24/7 Auto-Pilot Platform</title>
+    <title>Creddx AI - Trade Logs</title>
     <style>
         * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }}
-        body {{ background: #0b0f19; color: #f8fafc; padding: 24px 16px; }}
-        .container {{ max-width: 850px; margin: 0 auto; }}
-        .sub-banner {{ background: linear-gradient(90deg, #1e1b4b, #31104b); border: 1px solid #6366f1; border-radius: 14px; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }}
-        .btn-sub {{ background: #4f46e5; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }}
-        
-        /* Auto-Pilot Status Banner */
-        .autopilot-banner {{ background: #064e3b; border: 1px solid #059669; border-radius: 12px; padding: 12px 18px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: gap; }}
-        
-        .header {{ display: flex; justify-content: space-between; align-items: center; padding-bottom: 20px; border-bottom: 1px solid #1e293b; margin-bottom: 24px; }}
-        .logo {{ font-size: 24px; font-weight: 700; color: #38bdf8; }}
-        .badge {{ background: #064e3b; color: #34d399; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; border: 1px solid #059669; }}
-        .stats-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }}
-        .card {{ background: #131b2e; border: 1px solid #1e293b; border-radius: 12px; padding: 18px; }}
-        .card-label {{ font-size: 13px; color: #94a3b8; margin-bottom: 6px; }}
-        .card-value {{ font-size: 24px; font-weight: 700; }}
-        .text-green {{ color: #10b981; }}
-        .text-blue {{ color: #38bdf8; }}
-        
-        .action-bar {{ background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 18px 24px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; }}
-        .btn-scan {{ background: #0284c7; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; }}
-        .btn-scan:hover {{ background: #0369a1; }}
-        
-        .section-title {{ font-size: 18px; font-weight: 600; margin-bottom: 14px; color: #e2e8f0; }}
-        .trade-card {{ background: #131b2e; border: 1px solid #1e293b; border-radius: 12px; padding: 16px 20px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }}
-        .coin-name {{ font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; }}
-        .coin-details {{ font-size: 13px; color: #94a3b8; margin-top: 4px; }}
-        .trade-pnl {{ text-align: right; }}
-        .pnl-amount {{ font-size: 17px; font-weight: 700; }}
+        body {{ background: #000000; color: #f8fafc; padding: 18px 12px; }}
+        .container {{ max-width: 680px; margin: 0 auto; }}
 
-        .profile-btn {{ display: flex; align-items: center; gap: 12px; cursor: pointer; background: transparent; border: none; text-align: left; padding: 4px; }}
-        .avatar-img {{ width: 44px; height: 44px; border-radius: 50%; border: 2px solid #38bdf8; object-fit: cover; background: #0f172a; }}
-        
-        .modal {{ display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); justify-content: center; align-items: center; z-index: 100; padding: 16px; overflow-y: auto; }}
-        .modal-content {{ background: #1e293b; border: 1px solid #475569; border-radius: 16px; width: 100%; max-width: 440px; padding: 24px; text-align: center; margin: auto; max-height: 90vh; overflow-y: auto; }}
-        .input-box {{ width: 100%; padding: 11px 14px; border-radius: 8px; border: 1px solid #475569; background: #0f172a; color: white; margin-bottom: 12px; font-size: 14px; }}
-        .form-label {{ font-size: 12px; color: #94a3b8; text-align: left; margin-bottom: 4px; display: block; font-weight: 600; }}
-        .btn-primary {{ background: #0284c7; color: white; border: none; width: 100%; padding: 12px; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; }}
-        .btn-close {{ background: transparent; color: #94a3b8; border: none; margin-top: 10px; cursor: pointer; font-size: 13px; }}
+        /* Top Bar */
+        .top-bar {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }}
+        .pill-home {{ background: transparent; border: 1px solid #27272a; color: #bef264; border-radius: 20px; padding: 6px 16px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; cursor: pointer; text-decoration: none; }}
+        .live-pill {{ background: #141f12; border: 1px solid #22381b; border-radius: 20px; padding: 5px 12px; font-size: 12px; display: flex; align-items: center; gap: 8px; color: #bef264; font-weight: 700; }}
+        .live-tag {{ background: #22381b; color: #bef264; padding: 2px 6px; border-radius: 6px; font-size: 10px; }}
+        .green-dot {{ width: 8px; height: 8px; border-radius: 50%; background: #a3e635; display: inline-block; box-shadow: 0 0 8px #a3e635; }}
+        .avatar-btn {{ width: 34px; height: 34px; border-radius: 50%; background: #bef264; color: #000; display: flex; justify-content: center; align-items: center; font-weight: 800; font-size: 14px; cursor: pointer; border: none; }}
 
-        #authOverlay {{ position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0b0f19; z-index: 99; display: flex; justify-content: center; align-items: center; padding: 16px; }}
-        .auth-card {{ background: #131b2e; border: 1px solid #334155; border-radius: 16px; padding: 28px 24px; width: 100%; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); }}
-        .auth-tabs {{ display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid #334155; padding-bottom: 12px; }}
-        .tab-btn {{ background: transparent; border: none; color: #94a3b8; font-size: 15px; font-weight: 700; cursor: pointer; padding-bottom: 4px; }}
-        .tab-btn.active {{ color: #38bdf8; border-bottom: 2px solid #38bdf8; }}
-        .qr-box {{ background: white; padding: 12px; border-radius: 12px; display: inline-block; margin: 12px 0; }}
-        .btn-upi-app {{ background: #059669; color: white; text-decoration: none; display: block; padding: 12px; border-radius: 8px; font-weight: 700; margin-bottom: 14px; }}
+        /* Navbar */
+        .nav-bar {{ background: #0c0d10; border: 1px solid #1a1c23; border-radius: 28px; padding: 6px 12px; display: flex; justify-content: space-between; align-items: center; overflow-x: auto; margin-bottom: 20px; gap: 6px; }}
+        .nav-item {{ color: #71717a; text-decoration: none; font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 20px; white-space: nowrap; cursor: pointer; border: none; background: transparent; }}
+        .nav-item.active {{ background: #bef264; color: #000000; font-weight: 700; }}
+
+        /* Action Growth Button */
+        .btn-growth {{ background: #bef264; color: #000000; border: none; border-radius: 20px; padding: 10px 20px; font-size: 13px; font-weight: 700; cursor: pointer; margin-bottom: 20px; display: inline-block; transition: 0.2s; }}
+        .btn-growth:hover {{ opacity: 0.9; }}
+
+        /* Open Position Card */
+        .card-position {{ background: #07080a; border: 1px solid #18191f; border-radius: 28px; padding: 28px 24px; position: relative; overflow: hidden; margin-bottom: 32px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }}
+        .card-glow {{ position: absolute; top: -20px; right: -20px; width: 180px; height: 180px; background: radial-gradient(circle, rgba(190,242,100,0.15) 0%, rgba(0,0,0,0) 70%); border-radius: 50%; pointer-events: none; }}
+        .card-title {{ font-size: 22px; font-weight: 800; color: #ffffff; margin-bottom: 18px; }}
+        
+        .portfolio-label {{ font-size: 11px; font-weight: 700; letter-spacing: 0.8px; color: #71717a; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; font-style: italic; }}
+        .stats-row {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; border-bottom: 1px solid #18191f; padding-bottom: 24px; margin-bottom: 32px; }}
+        .stat-col-title {{ font-size: 10px; color: #71717a; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 2px; }}
+        .stat-col-val {{ font-size: 13px; font-weight: 700; color: #ffffff; }}
+        .stat-col-val.green {{ color: #bef264; }}
+        
+        .no-position {{ text-align: center; color: #52525b; font-size: 16px; font-weight: 500; padding: 20px 0 12px; }}
+
+        /* Realized Trade History */
+        .history-title {{ text-align: center; font-size: 20px; font-weight: 800; color: #ffffff; margin-bottom: 18px; }}
+        .pill-btn-wide {{ background: #18181b; border: 1px solid #27272a; border-radius: 14px; padding: 12px; text-align: center; color: #e4e4e7; font-size: 13px; font-weight: 600; margin-bottom: 10px; cursor: pointer; display: block; width: 100%; }}
+        
+        .coin-filter-row {{ display: flex; gap: 8px; margin: 18px 0 14px; overflow-x: auto; }}
+        .coin-filter {{ background: #18181b; border: 1px solid #27272a; border-radius: 12px; padding: 8px 16px; color: #a1a1aa; font-size: 12px; font-weight: 700; cursor: pointer; border: none; }}
+        .coin-filter.active {{ background: #bef264; color: #000000; }}
+
+        /* Trade Row Item */
+        .trade-row {{ background: #0c0d10; border: 1px solid #18191f; border-radius: 14px; padding: 14px 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }}
+        .coin-badge {{ background: #141f12; color: #bef264; border: 1px solid #22381b; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 800; }}
+
+        /* Modal Styles */
+        .modal {{ display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); justify-content: center; align-items: center; z-index: 100; padding: 16px; }}
+        .modal-content {{ background: #0c0d10; border: 1px solid #27272a; border-radius: 20px; width: 100%; max-width: 420px; padding: 24px; text-align: center; }}
+        .input-box {{ width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #27272a; background: #000; color: white; margin-bottom: 10px; font-size: 14px; }}
+        .btn-green {{ background: #bef264; color: #000; border: none; width: 100%; padding: 12px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; }}
+        .btn-close {{ background: transparent; color: #71717a; border: none; margin-top: 10px; cursor: pointer; font-size: 13px; }}
+
+        /* Auth Screen */
+        #authOverlay {{ position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 99; display: flex; justify-content: center; align-items: center; padding: 16px; }}
+        .auth-card {{ background: #0c0d10; border: 1px solid #1a1c23; border-radius: 20px; padding: 28px 24px; width: 100%; max-width: 380px; text-align: center; }}
     </style>
 </head>
 <body>
     <!-- Auth Screen -->
     <div id="authOverlay">
         <div class="auth-card">
-            <div style="text-align: center; margin-bottom: 18px;">
-                <h2 style="color: #38bdf8; font-size: 22px; font-weight: 800;">⚡ CryptoBot AI Pro</h2>
-                <p style="font-size: 12px; color: #94a3b8; margin-top: 4px;">Sign in to access your Automated Trading Bot</p>
-            </div>
+            <h2 style="color: #bef264; font-size: 24px; font-weight: 800; margin-bottom: 6px;">creddx.ai</h2>
+            <p style="font-size: 12px; color: #71717a; margin-bottom: 20px;">Automated Crypto Trading Intelligence</p>
 
-            <div class="auth-tabs">
-                <button id="tabLoginBtn" class="tab-btn active" onclick="switchAuthTab('login')">🔑 Login</button>
-                <button id="tabSignupBtn" class="tab-btn" onclick="switchAuthTab('signup')">📝 Create Account</button>
+            <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+                <button id="tabLogin" class="coin-filter active" style="flex:1;" onclick="switchAuthTab('login')">Login</button>
+                <button id="tabSignup" class="coin-filter" style="flex:1;" onclick="switchAuthTab('signup')">Sign Up</button>
             </div>
 
             <div id="loginForm">
                 <input id="loginEmail" type="email" class="input-box" placeholder="Gmail Address">
                 <input id="loginPassword" type="password" class="input-box" placeholder="Password">
-                <button class="btn-primary" onclick="handleLogin()">🚀 Login to Dashboard</button>
-                <p style="font-size: 11px; color: #64748b; margin-top: 12px; text-align: center;">Owner: admin@cryptobot.com / admin123</p>
+                <button class="btn-green" onclick="handleLogin()">Login to Terminal</button>
+                <p style="font-size: 11px; color: #52525b; margin-top: 12px;">Admin: admin@cryptobot.com / admin123</p>
             </div>
 
             <div id="signupForm" style="display: none;">
-                <input id="signupEmail" type="email" class="input-box" placeholder="Enter Your Gmail Address">
-                <input id="signupPassword" type="password" class="input-box" placeholder="Create a Password">
-                <button class="btn-primary" style="background: #10b981;" onclick="handleDirectSignup()">✨ Create Account & Open Dashboard</button>
+                <input id="signupEmail" type="email" class="input-box" placeholder="Enter Gmail Address">
+                <input id="signupPassword" type="password" class="input-box" placeholder="Create Password">
+                <button class="btn-green" onclick="handleDirectSignup()">Create Account</button>
             </div>
         </div>
     </div>
 
-    <!-- Main Dashboard -->
+    <!-- Main Creddx Platform -->
     <div class="container" id="mainDashboard" style="display:none;">
-        <div class="sub-banner">
-            <div class="profile-btn" onclick="openProfileModal()" title="Click to edit profile & settings">
-                <div style="position: relative;">
-                    <img id="headerAvatarImg" class="avatar-img" src="https://api.dicebear.com/7.x/bottts/svg?seed=CryptoOwner" alt="Avatar">
-                    <span style="position: absolute; bottom: 0; right: 0; background: #10b981; width: 11px; height: 11px; border-radius: 50%; border: 2px solid #131b2e;"></span>
+        <!-- Top Bar -->
+        <div class="top-bar">
+            <button class="pill-home" onclick="window.location.reload()">⌂ Home</button>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div class="live-pill">
+                    <span class="live-tag">LIVE</span>
+                    <span>{balance:.2f} USDT</span>
+                    <span class="green-dot"></span>
+                </div>
+                <button class="avatar-btn" id="avatarBtn" onclick="openProfileModal()">M</button>
+            </div>
+        </div>
+
+        <!-- Navigation Bar -->
+        <div class="nav-bar">
+            <button class="nav-item">Home</button>
+            <button class="nav-item">Strategies</button>
+            <button class="nav-item" onclick="openPaymentModal()">Plans</button>
+            <button class="nav-item active">Trade Logs</button>
+            <button class="nav-item">BOT Wallet</button>
+            <button class="nav-item">Overview</button>
+            <button class="nav-item" onclick="logoutUser()">Logout</button>
+        </div>
+
+        <!-- Action Button -->
+        <button class="btn-growth" onclick="triggerScan()">View Balance Growth & Run Scan</button>
+
+        <!-- Open Position Card -->
+        <div class="card-position">
+            <div class="card-glow"></div>
+            <div class="card-title">Open Position</div>
+            <div class="portfolio-label">PORTFOLIO OVERVIEW 👁</div>
+
+            <div class="stats-row">
+                <div>
+                    <div class="stat-col-title">PRINCIPAL ▾</div>
+                    <div class="stat-col-val">1000.00 <span style="font-size: 10px; color:#71717a;">USDT</span></div>
                 </div>
                 <div>
-                    <div style="display: flex; align-items: center; gap: 6px;">
-                        <strong style="color: #a5b4fc; font-size: 15px;" id="profileDisplayName">My Profile</strong>
-                        <span style="font-size: 11px; background: #312e81; color: #a5b4fc; padding: 1px 6px; border-radius: 4px;">⚙️ Edit</span>
-                    </div>
-                    <p style="font-size: 12px; color: #cbd5e1; margin-top: 2px;" id="userEmailSpan">User</p>
+                    <div class="stat-col-title">E. PNL ▾</div>
+                    <div class="stat-col-val green">{profit_sign}{profit:.2f}</div>
+                </div>
+                <div>
+                    <div class="stat-col-title">PNL ▾</div>
+                    <div class="stat-col-val green">{profit_sign}{profit:.2f} <span style="font-size: 10px;">USDT</span></div>
+                </div>
+                <div>
+                    <div class="stat-col-title">CURRENT</div>
+                    <div class="stat-col-val">{balance:.2f} <span style="font-size: 10px; color:#71717a;">USDT</span></div>
                 </div>
             </div>
 
-            <div>
-                <button class="btn-sub" onclick="openPaymentModal()">💳 Renew / Upgrade (₹999)</button>
-                <button class="btn-sub" style="background: #334155; margin-left: 6px;" onclick="logoutUser()">🚪 Logout</button>
-            </div>
+            <div class="no-position">No open positions found.</div>
         </div>
 
-        <!-- 24/7 Cloud Auto-Pilot Banner -->
-        <div class="autopilot-banner">
-            <div>
-                <strong style="color: #a7f3d0; font-size: 14px;">🟢 24/7 Cloud Auto-Pilot Active</strong>
-                <p style="font-size: 12px; color: #d1fae5; margin-top: 2px;">
-                    Background frequency: Every 15 mins • Last scan: <span id="autoLastTime">{autopilot_state['last_scan_time']}</span>
-                </p>
-            </div>
-            <span style="background: #022c22; color: #34d399; border: 1px solid #059669; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 700;">
-                Live Background Loop
-            </span>
-        </div>
-
-        <div class="header">
-            <div class="logo">⚡ CryptoBot AI Pro</div>
-            <div class="badge">● Auto-Pilot Running</div>
-        </div>
-
-        <div class="action-bar">
-            <div>
-                <strong style="font-size: 16px;">Manual Scan Trigger</strong>
-                <p style="font-size: 13px; color: #94a3b8; margin-top: 4px;">Auto-Pilot chalta rahega, ya aap abhi turant instant scan kar sakte hain:</p>
-            </div>
-            <button id="scanBtn" class="btn-scan" onclick="triggerScan()">⚡ Instant Scan Now</button>
-        </div>
-
-        <div class="stats-grid">
-            <div class="card">
-                <div class="card-label">Live Saved Balance</div>
-                <div class="card-value text-blue">${balance:.2f}</div>
-            </div>
-            <div class="card">
-                <div class="card-label">Total Realized Profit</div>
-                <div class="card-value" style="color: {profit_color};">{profit_sign}${profit:.2f} <span style="font-size: 14px;">({profit_sign}{profit_pct:.2f}%)</span></div>
-            </div>
-            <div class="card">
-                <div class="card-label">Today's Trades</div>
-                <div class="card-value">{daily_count} / 2</div>
-            </div>
-            <div class="card">
-                <div class="card-label">Pairs Tracked</div>
-                <div class="card-value" style="font-size: 16px; line-height: 30px;">BTC • ETH • SOL</div>
-            </div>
-        </div>
-
+        <!-- Realized Trade History -->
         <div>
-            <div class="section-title">Saved Trade History (From Database)</div>
-            {trades_html}
+            <div class="history-title">Realized Trade History</div>
+
+            <button class="pill-btn-wide">Compare with BTC & ETH</button>
+            <button class="pill-btn-wide" onclick="alert('Downloading Trade PDF Report...')">Download Trade PDF</button>
+
+            <!-- Coin Filters -->
+            <div class="coin-filter-row">
+                <button class="coin-filter active" onclick="filterCoin('ALL', this)">ALL</button>
+                <button class="coin-filter" onclick="filterCoin('ETH-USDT', this)">ETH-USDT</button>
+                <button class="coin-filter" onclick="filterCoin('BTC-USDT', this)">BTC-USDT</button>
+                <button class="coin-filter" onclick="filterCoin('SOL-USDT', this)">SOL-USDT</button>
+            </div>
+
+            <div id="tradesListContainer">
+                {trades_html}
+            </div>
         </div>
     </div>
 
-    <!-- User Profile & Settings Modal -->
+    <!-- Profile Modal -->
     <div id="profileModal" class="modal">
         <div class="modal-content">
-            <h2 style="font-size: 20px; color: #38bdf8; margin-bottom: 4px;">👤 Crypto AI Profile & Settings</h2>
-            <p style="font-size: 12px; color: #94a3b8; margin-bottom: 16px;">Manage your personal trading profile and account</p>
-
-            <div style="margin-bottom: 16px;">
-                <img id="profileModalAvatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=CryptoOwner" style="width: 72px; height: 72px; border-radius: 50%; border: 3px solid #38bdf8; object-fit: cover; background: #0f172a; display: block; margin: 0 auto 8px;">
-                <label style="background: #334155; color: #e2e8f0; font-size: 12px; padding: 6px 14px; border-radius: 6px; cursor: pointer; display: inline-block;">
-                    📸 Change Profile Picture
-                    <input type="file" id="avatarFileInput" accept="image/*" style="display: none;" onchange="handleAvatarUpload(event)">
-                </label>
-            </div>
-
-            <label class="form-label">Full Name</label>
-            <input id="profileNameInput" type="text" class="input-box" placeholder="e.g. Md Modassir">
-
-            <label class="form-label">Phone Number</label>
-            <input id="profilePhoneInput" type="tel" class="input-box" placeholder="e.g. +91 8406012453">
-
-            <label class="form-label">Country / Region</label>
-            <select id="profileCountryInput" class="input-box">
-                <option value="India 🇮🇳">India 🇮🇳</option>
-                <option value="United Arab Emirates 🇦🇪">United Arab Emirates 🇦🇪</option>
-                <option value="United States 🇺🇸">United States 🇺🇸</option>
-                <option value="United Kingdom 🇬🇧">United Kingdom 🇬🇧</option>
-                <option value="Singapore 🇸🇬">Singapore 🇸🇬</option>
-                <option value="Other">Other Global</option>
-            </select>
-
-            <label class="form-label">Bot Risk Strategy</label>
-            <select id="profileRiskInput" class="input-box">
-                <option value="Moderate (1.5% Target / 1% SL)">Moderate (1.5% Target / 1% SL) [Recommended]</option>
-                <option value="Conservative (1.0% Target / 0.8% SL)">Conservative (1.0% Target / 0.8% SL)</option>
-                <option value="Aggressive (2.5% Target / 1.5% SL)">Aggressive (2.5% Target / 1.5% SL)</option>
-            </select>
-
-            <div style="border-top: 1px solid #334155; padding-top: 12px; margin-top: 6px; text-align: left;">
-                <span style="font-size: 13px; font-weight: 700; color: #a5b4fc; display: block; margin-bottom: 8px;">🔐 Change Password (Optional)</span>
-                <label class="form-label">Old Password</label>
-                <input id="profileOldPassInput" type="password" class="input-box" placeholder="Current Password">
-                <label class="form-label">New Password</label>
-                <input id="profileNewPassInput" type="password" class="input-box" placeholder="New Password (leave blank if unchanged)">
-            </div>
-
-            <button class="btn-primary" style="background: #10b981; margin-top: 8px;" onclick="saveUserProfile()">💾 Save Profile Changes</button>
+            <h3 style="color: #bef264; margin-bottom: 14px;">User Profile & Settings</h3>
+            <input id="profileName" type="text" class="input-box" placeholder="Full Name">
+            <input id="profilePhone" type="tel" class="input-box" placeholder="Phone Number">
+            <button class="btn-green" onclick="saveProfile()">Save Changes</button>
             <button class="btn-close" onclick="closeProfileModal()">Close</button>
         </div>
     </div>
 
-    <!-- Payment Modal -->
+    <!-- Plans & Payment Modal (UPI) -->
     <div id="payModal" class="modal">
         <div class="modal-content">
-            <h2 style="font-size: 19px;">Activate 30 Days Pro Bot</h2>
-            <p style="font-size: 12px; color: #94a3b8; margin-top: 4px;">Google Pay • PhonePe • Paytm • Any UPI</p>
-
-            <div class="qr-box">
-                <img src="{qr_image_url}" alt="UPI QR Code" style="display:block; width: 180px; height: 180px;">
+            <h3 style="color: #bef264;">30 Days Pro Trading Plan</h3>
+            <p style="font-size: 12px; color: #71717a; margin: 6px 0 14px;">Unlimited 24/7 AI Bot Trading</p>
+            <div style="background: white; padding: 8px; border-radius: 12px; display: inline-block; margin-bottom: 10px;">
+                <img src="{qr_image_url}" alt="UPI QR" style="width: 170px; height: 170px; display: block;">
             </div>
-
-            <div style="font-size: 14px; color: #38bdf8; background: #0f172a; padding: 8px 12px; border-radius: 8px; margin-bottom: 12px; font-family: monospace;">UPI ID: {MY_UPI_ID}</div>
-
-            <a href="{upi_intent_url}" class="btn-upi-app">📱 Pay ₹999 via Any UPI App</a>
-
-            <div style="border-top: 1px solid #334155; padding-top: 12px; margin-top: 6px;">
-                <p style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">Payment ke baad 12-digit UTR No. enter karein:</p>
-                <input id="utrInput" type="text" class="input-box" placeholder="Enter UTR (e.g. 423567890123)" maxlength="16">
-                <button class="btn-primary" style="background: #10b981;" onclick="submitPayment()">✅ Verify & Unlock My Account</button>
-            </div>
-
-            <button class="btn-close" onclick="closePaymentModal()">Close Window</button>
+            <div style="color: #bef264; font-family: monospace; font-size: 13px; margin-bottom: 12px;">UPI: {MY_UPI_ID}</div>
+            <a href="{upi_intent_url}" class="pill-btn-wide" style="background: #bef264; color: #000; font-weight: 700; text-decoration: none;">📱 Pay ₹999 via Any UPI App</a>
+            <input id="utrInput" type="text" class="input-box" placeholder="Enter 12-digit UTR">
+            <button class="btn-green" onclick="submitPayment()">Verify & Activate</button>
+            <button class="btn-close" onclick="closePaymentModal()">Close</button>
         </div>
     </div>
 
     <script>
-        let currentUploadedAvatar = '';
-
         window.addEventListener('DOMContentLoaded', () => {{
-            const savedUser = localStorage.getItem('cryptobot_user_email');
-            if (savedUser) {{
-                showDashboard(savedUser);
-                loadProfileData(savedUser);
+            const saved = localStorage.getItem('cryptobot_user_email');
+            if (saved) {{
+                document.getElementById('authOverlay').style.display = 'none';
+                document.getElementById('mainDashboard').style.display = 'block';
+                const initial = saved.charAt(0).toUpperCase();
+                document.getElementById('avatarBtn').innerText = initial;
             }}
         }});
 
@@ -430,23 +391,19 @@ def get_html():
             if (tab === 'login') {{
                 document.getElementById('loginForm').style.display = 'block';
                 document.getElementById('signupForm').style.display = 'none';
-                document.getElementById('tabLoginBtn').classList.add('active');
-                document.getElementById('tabSignupBtn').classList.remove('active');
+                document.getElementById('tabLogin').classList.add('active');
+                document.getElementById('tabSignup').classList.remove('active');
             }} else {{
                 document.getElementById('loginForm').style.display = 'none';
                 document.getElementById('signupForm').style.display = 'block';
-                document.getElementById('tabSignupBtn').classList.add('active');
-                document.getElementById('tabLoginBtn').classList.remove('active');
+                document.getElementById('tabSignup').classList.add('active');
+                document.getElementById('tabLogin').classList.remove('active');
             }}
         }}
 
         async function handleLogin() {{
             const email = document.getElementById('loginEmail').value.trim();
             const pass = document.getElementById('loginPassword').value.trim();
-            if (!email || !pass) {{
-                alert('Please enter both Email and Password!');
-                return;
-            }}
             const res = await fetch('/api/login', {{
                 method: 'POST',
                 headers: {{ 'Content-Type': 'application/json' }},
@@ -455,8 +412,7 @@ def get_html():
             const data = await res.json();
             if (data.status === 'success') {{
                 localStorage.setItem('cryptobot_user_email', email);
-                showDashboard(email, data.plan_status);
-                loadProfileData(email);
+                window.location.reload();
             }} else {{
                 alert(data.message);
             }}
@@ -465,10 +421,6 @@ def get_html():
         async function handleDirectSignup() {{
             const email = document.getElementById('signupEmail').value.trim();
             const pass = document.getElementById('signupPassword').value.trim();
-            if (!email || !pass) {{
-                alert('Please enter Email and Password!');
-                return;
-            }}
             const res = await fetch('/api/signup', {{
                 method: 'POST',
                 headers: {{ 'Content-Type': 'application/json' }},
@@ -476,19 +428,11 @@ def get_html():
             }});
             const data = await res.json();
             if (data.status === 'success') {{
-                alert('🎉 Welcome! Account created successfully.');
                 localStorage.setItem('cryptobot_user_email', email);
-                showDashboard(email, 'ACTIVE (Welcome Trial)');
-                loadProfileData(email);
+                window.location.reload();
             }} else {{
                 alert(data.message);
             }}
-        }}
-
-        function showDashboard(email, status='Active') {{
-            document.getElementById('authOverlay').style.display = 'none';
-            document.getElementById('mainDashboard').style.display = 'block';
-            document.getElementById('userEmailSpan').innerText = email;
         }}
 
         function logoutUser() {{
@@ -496,93 +440,34 @@ def get_html():
             window.location.reload();
         }}
 
-        function openProfileModal() {{
-            document.getElementById('profileModal').style.display = 'flex';
-        }}
-        function closeProfileModal() {{
-            document.getElementById('profileModal').style.display = 'none';
-        }}
+        function openProfileModal() {{ document.getElementById('profileModal').style.display = 'flex'; }}
+        function closeProfileModal() {{ document.getElementById('profileModal').style.display = 'none'; }}
+        function openPaymentModal() {{ document.getElementById('payModal').style.display = 'flex'; }}
+        function closePaymentModal() {{ document.getElementById('payModal').style.display = 'none'; }}
 
-        function handleAvatarUpload(event) {{
-            const file = event.target.files[0];
-            if (file) {{
-                const reader = new FileReader();
-                reader.onload = function(e) {{
-                    currentUploadedAvatar = e.target.result;
-                    document.getElementById('profileModalAvatar').src = currentUploadedAvatar;
-                    document.getElementById('headerAvatarImg').src = currentUploadedAvatar;
-                }};
-                reader.readAsDataURL(file);
-            }}
-        }}
-
-        async function loadProfileData(email) {{
-            try {{
-                const res = await fetch('/api/get-profile', {{
-                    method: 'POST',
-                    headers: {{ 'Content-Type': 'application/json' }},
-                    body: JSON.stringify({{ email: email }})
-                }});
-                const data = await res.json();
-                if (data.status === 'success') {{
-                    const p = data.profile || {{}};
-                    if (p.name) {{
-                        document.getElementById('profileDisplayName').innerText = p.name;
-                        document.getElementById('profileNameInput').value = p.name;
-                    }}
-                    if (p.phone) document.getElementById('profilePhoneInput').value = p.phone;
-                    if (p.country) document.getElementById('profileCountryInput').value = p.country;
-                    if (p.risk) document.getElementById('profileRiskInput').value = p.risk;
-                    if (p.avatar) {{
-                        currentUploadedAvatar = p.avatar;
-                        document.getElementById('headerAvatarImg').src = p.avatar;
-                        document.getElementById('profileModalAvatar').src = p.avatar;
-                    }}
+        function filterCoin(coin, btn) {{
+            document.querySelectorAll('.coin-filter').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const rows = document.querySelectorAll('.trade-row');
+            rows.forEach(r => {{
+                if (coin === 'ALL' || r.getAttribute('data-coin').includes(coin.replace('-', ''))) {{
+                    r.style.display = 'flex';
+                }} else {{
+                    r.style.display = 'none';
                 }}
-            }} catch (e) {{}}
+            }});
         }}
 
-        async function saveUserProfile() {{
-            const email = localStorage.getItem('cryptobot_user_email');
-            const name = document.getElementById('profileNameInput').value.trim();
-            const phone = document.getElementById('profilePhoneInput').value.trim();
-            const country = document.getElementById('profileCountryInput').value;
-            const risk = document.getElementById('profileRiskInput').value;
-            const oldPass = document.getElementById('profileOldPassInput').value.trim();
-            const newPass = document.getElementById('profileNewPassInput').value.trim();
-
-            const res = await fetch('/api/update-profile', {{
-                method: 'POST',
-                headers: {{ 'Content-Type': 'application/json' }},
-                body: JSON.stringify({{
-                    email: email,
-                    name: name,
-                    phone: phone,
-                    country: country,
-                    risk: risk,
-                    avatar: currentUploadedAvatar,
-                    old_pass: oldPass,
-                    new_pass: newPass
-                }})
-            }});
+        async function triggerScan() {{
+            const res = await fetch('/run-bot', {{ method: 'POST' }});
             const data = await res.json();
             alert(data.message);
-            if (data.status === 'success') {{
-                if (name) document.getElementById('profileDisplayName').innerText = name;
-                closeProfileModal();
-            }}
-        }}
-
-        function openPaymentModal() {{
-            document.getElementById('payModal').style.display = 'flex';
-        }}
-        function closePaymentModal() {{
-            document.getElementById('payModal').style.display = 'none';
+            window.location.reload();
         }}
 
         async function submitPayment() {{
             const utr = document.getElementById('utrInput').value.trim();
-            const email = localStorage.getItem('cryptobot_user_email') || 'Guest';
+            const email = localStorage.getItem('cryptobot_user_email') || 'User';
             const res = await fetch('/subscribe', {{
                 method: 'POST',
                 headers: {{ 'Content-Type': 'application/json' }},
@@ -592,23 +477,6 @@ def get_html():
             alert(data.message);
             closePaymentModal();
             window.location.reload();
-        }}
-
-        async function triggerScan() {{
-            const btn = document.getElementById('scanBtn');
-            btn.innerText = 'Scanning Live Market... ⏳';
-            btn.disabled = true;
-
-            try {{
-                const res = await fetch('/run-bot', {{ method: 'POST' }});
-                const data = await res.json();
-                alert(data.message);
-                window.location.reload();
-            }} catch (err) {{
-                alert('Error connecting to bot server!');
-                btn.innerText = '⚡ Instant Scan Now';
-                btn.disabled = false;
-            }}
         }}
     </script>
 </body>
@@ -661,57 +529,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     "profile": {
                         "name": email.split('@')[0],
                         "phone": "",
-                        "country": "India 🇮🇳",
-                        "risk": "Moderate (1.5%)",
-                        "avatar": ""
+                        "country": "India 🇮🇳"
                     }
                 }
                 save_db(db)
                 res = {"status": "success", "message": "Account created successfully!"}
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps(res).encode('utf-8'))
-
-        elif self.path == '/api/get-profile':
-            email = payload.get('email', '').strip().lower()
-            db = load_db()
-            user = db.get("users", {}).get(email, {})
-            profile = user.get("profile", {})
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps({"status": "success", "profile": profile}).encode('utf-8'))
-
-        elif self.path == '/api/update-profile':
-            email = payload.get('email', '').strip().lower()
-            db = load_db()
-            user = db.get("users", {}).get(email)
-            if not user:
-                res = {"status": "error", "message": "User not found!"}
-            else:
-                old_p = payload.get('old_pass')
-                new_p = payload.get('new_pass')
-                if new_p:
-                    if user.get("password") != old_p:
-                        self.send_response(200)
-                        self.send_header('Content-type', 'application/json')
-                        self.end_headers()
-                        self.wfile.write(json.dumps({"status": "error", "message": "❌ Old Password galat hai!"}).encode('utf-8'))
-                        return
-                    else:
-                        user["password"] = new_p
-
-                user["profile"] = {
-                    "name": payload.get('name', ''),
-                    "phone": payload.get('phone', ''),
-                    "country": payload.get('country', 'India 🇮🇳'),
-                    "risk": payload.get('risk', 'Moderate (1.5%)'),
-                    "avatar": payload.get('avatar', '')
-                }
-                save_db(db)
-                res = {"status": "success", "message": "✅ Profile & Settings successfully update ho gayi!"}
-
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
