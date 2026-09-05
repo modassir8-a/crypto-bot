@@ -45,9 +45,6 @@ autopilot_state = {
 
 def load_db():
     default_expiry = (datetime.now() + timedelta(days=365)).strftime("%d %b %Y")
-    real_initial_activity = [
-        {"id": "init_1", "email": "admin@cryptobot.com", "date": "04 Sep 2026", "time": "09:00 pm", "type": "INR Deposit (Bank Transfer)", "category": "DEPOSIT", "amount_inr": 1000.0, "status": "Completed"}
-    ]
     data = {}
     if os.path.exists(DB_FILE):
         try:
@@ -67,13 +64,13 @@ def load_db():
     if "trades" not in data:
         data["trades"] = []
     if "wallet_activity" not in data:
-        data["wallet_activity"] = real_initial_activity
+        data["wallet_activity"] = []
     if "payments" not in data:
         data["payments"] = []
     if "users" not in data:
         data["users"] = {}
 
-    # Guarantee admin account exists
+    # 1. Admin Master Account
     data["users"]["admin@cryptobot.com"] = {
         "password": "admin123",
         "status": "ACTIVE",
@@ -84,12 +81,42 @@ def load_db():
         "inr_balance": 0.0,
         "is_admin": True,
         "profile": {
-            "name": "Modassir",
+            "name": "Modassir (Admin)",
             "phone": "+91 8406012453",
             "country": "India 🇮🇳",
             "risk": "Moderate (1.5%)"
         }
     }
+
+    # 2. Permanent Personal Customer Account (With 8,000 INR ready for conversion)
+    if "mdm906581@gmail.com" not in data["users"]:
+        data["users"]["mdm906581@gmail.com"] = {
+            "password": "password",
+            "status": "ACTIVE",
+            "plan": "NONE",
+            "days_left": 0,
+            "balance": 0.0,
+            "inr_balance": 8000.0,
+            "is_admin": False,
+            "profile": {
+                "name": "Modassir",
+                "phone": "+91 8406012453",
+                "country": "India 🇮🇳"
+            }
+        }
+        # Add deposit history for this 8,000 INR
+        data.setdefault("wallet_activity", []).insert(0, {
+            "id": f"dep_{int(time.time())}",
+            "email": "mdm906581@gmail.com",
+            "sender_name": "Modassir",
+            "date": datetime.now().strftime("%d %b %Y"),
+            "time": datetime.now().strftime("%I:%M %p").lower(),
+            "type": "INR Deposit (Bank Transfer)",
+            "category": "DEPOSIT",
+            "amount_inr": 8000.0,
+            "utr": "123456789012",
+            "status": "Completed"
+        })
 
     return data
 
@@ -172,7 +199,6 @@ threading.Thread(target=background_autopilot_worker, daemon=True).start()
 def get_html():
     data = load_db()
     balance = data.get("balance", 1000.0)
-    inr_balance = data.get("inr_balance", 0.0)
 
     trades_html = ""
     for t in reversed(data.get("trades", [])):
@@ -400,8 +426,8 @@ def get_html():
             </div>
 
             <div id="loginForm">
-                <input id="loginEmail" type="email" class="input-box" placeholder="Gmail Address">
-                <input id="loginPassword" type="password" class="input-box" placeholder="Password">
+                <input id="loginEmail" type="email" class="input-box" placeholder="Gmail Address" value="mdm906581@gmail.com">
+                <input id="loginPassword" type="password" class="input-box" placeholder="Password" value="password">
                 <button class="btn-action" onclick="handleLogin()">Login to Terminal</button>
                 <p style="font-size: 11px; color: #64748b; margin-top: 12px;">Admin: admin@cryptobot.com / admin123</p>
             </div>
@@ -523,13 +549,13 @@ def get_html():
             </div>
 
             <div class="wallet-actions-bar">
-                <button id="pillDeposit" class="wallet-action-pill active" onclick="switchWalletTab('deposit')">↙ DEPOSIT • INR ▾</button>
+                <button id="pillDeposit" class="wallet-action-pill" onclick="switchWalletTab('deposit')">↙ DEPOSIT • INR ▾</button>
                 <button id="pillWithdraw" class="wallet-action-pill" onclick="switchWalletTab('withdraw')">↗ WITHDRAW • INR ▾</button>
-                <button id="pillConversion" class="wallet-action-pill" onclick="switchWalletTab('conversion')">⇄ CONVERSION</button>
+                <button id="pillConversion" class="wallet-action-pill active" onclick="switchWalletTab('conversion')">⇄ CONVERSION</button>
             </div>
 
             <!-- Sub-tab 1: Deposit INR -->
-            <div id="walletSubDeposit">
+            <div id="walletSubDeposit" style="display: none;">
                 <div class="step-indicator">
                     <span class="step-circle" id="stepCircle1">1</span> <span id="stepLabel1" style="color: #ffffff;">PAYMENT DETAILS</span> ────── <span class="step-circle" id="stepCircle2" style="background:#1e293b; color:#94a3b8;">2</span> <span id="stepLabel2">SUBMIT PROOF</span>
                 </div>
@@ -671,7 +697,7 @@ def get_html():
                 </div>
             </div>
 
-            <!-- Sub-tab 3: Conversion -->
+            <!-- Sub-tab 3: Conversion (With Working INR -> USDT & USDT -> INR Balance Swapping) -->
             <div id="walletSubConversion">
                 <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 6px;">
                     <div style="background: #064e3b; border: 1px solid #059669; width: 36px; height: 36px; border-radius: 10px; display: flex; justify-content: center; align-items: center; font-size: 18px;">🤖</div>
@@ -689,13 +715,13 @@ def get_html():
                     <div class="swap-box">
                         <div class="swap-label-row">
                             <span>From</span>
-                            <span>Available: <span id="fromAvailableDisplay">0.0000 USDT</span></span>
+                            <span>Available: <span id="fromAvailableDisplay">₹ 0.00 INR</span></span>
                         </div>
                         <div class="swap-input-row">
                             <input id="fromAmountInput" type="number" class="swap-input" placeholder="0.00" value="0.00" oninput="handleSwapCalculate()">
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <span class="max-pill" onclick="handleMaxClick()">Max</span>
-                                <div class="curr-pill" id="fromCurrPill">USDT ▾</div>
+                                <div class="curr-pill" id="fromCurrPill">INR ▾</div>
                             </div>
                         </div>
                     </div>
@@ -705,17 +731,17 @@ def get_html():
                     <div class="swap-box">
                         <div class="swap-label-row">
                             <span>To</span>
-                            <span>Available: <span id="toAvailableDisplay">₹ 0.0000 INR</span></span>
+                            <span>Available: <span id="toAvailableDisplay">0.0000 USDT</span></span>
                         </div>
                         <div class="swap-input-row">
                             <input id="toAmountInput" type="text" class="swap-input" placeholder="0" value="0" readonly>
-                            <div class="curr-pill" id="toCurrPill">INR ▾</div>
+                            <div class="curr-pill" id="toCurrPill">USDT ▾</div>
                         </div>
                     </div>
 
                     <div class="calc-breakdown">
                         <div class="breakdown-row">
-                            <span><span id="rateDirectionLabel">USDT → INR</span> <span style="background:#064e3b; color:#34d399; font-size:10px; padding:2px 6px; border-radius:4px; margin-left:4px;">● Live</span></span>
+                            <span><span id="rateDirectionLabel">INR → USDT</span> <span style="background:#064e3b; color:#34d399; font-size:10px; padding:2px 6px; border-radius:4px; margin-left:4px;">● Live</span></span>
                             <strong style="color: #f8fafc;" id="liveRateText">1 USDT ≈ {USDT_INR_RATE:.4f} INR</strong>
                         </div>
                         <div class="breakdown-row">
@@ -732,7 +758,7 @@ def get_html():
                         </div>
                         <div class="breakdown-row" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #16233b;">
                             <span style="font-weight: 700; color: #f8fafc;">You will receive</span>
-                            <strong style="color: #38bdf8; font-size: 16px;" id="receiveSummaryText">0 INR</strong>
+                            <strong style="color: #38bdf8; font-size: 16px;" id="receiveSummaryText">0 USDT</strong>
                         </div>
                     </div>
 
@@ -778,7 +804,7 @@ def get_html():
             <div style="margin-bottom: 20px; text-align: left;">
                 <h2 style="font-size: 24px; font-weight: 800; color: #fde047; margin-bottom: 6px;">👑 Master Admin Approval Panel</h2>
                 <p style="font-size: 13px; color: #94a3b8;">
-                    Review customer deposits, verify UTR numbers, credit balances, and activate plans.
+                    Review customer deposits, verify UTR numbers, credit INR to wallet, and activate plans.
                 </p>
             </div>
 
@@ -867,7 +893,7 @@ def get_html():
         
         let currentUsdtBal = 0.0;
         let currentInrBal = 0.0;
-        let swapDirection = 'USDT_TO_INR';
+        let swapDirection = 'INR_TO_USDT'; // Default to converting INR to USDT
         let isBalanceHidden = false;
 
         let selectedPlanId = 'STANDARD';
@@ -936,10 +962,9 @@ def get_html():
                     document.getElementById('dispCurrent').innerHTML = origValues.current.replace('USDT', '<span style="font-size: 10px; color:#64748b;">USDT</span>');
                     document.getElementById('headerBalText').innerText = origValues.header;
                     document.getElementById('walletUsdtBalDisplay').innerText = currentUsdtBal.toFixed(2);
-                    document.getElementById('fromAvailableDisplay').innerText = currentUsdtBal.toFixed(4) + ' USDT';
-                    document.getElementById('toAvailableDisplay').innerText = '₹ ' + currentInrBal.toFixed(4) + ' INR';
+                    
+                    updateSwapDisplay();
 
-                    // Dynamic Personal Wallet Activity Render
                     renderPersonalActivity(data.activity || []);
 
                     const activePlan = u.plan;
@@ -955,6 +980,22 @@ def get_html():
                 }}
             }} catch(e) {{
                 console.error(e);
+            }}
+        }}
+
+        function updateSwapDisplay() {{
+            if (swapDirection === 'INR_TO_USDT') {{
+                document.getElementById('fromAvailableDisplay').innerText = '₹ ' + currentInrBal.toLocaleString('en-IN', {{minimumFractionDigits: 2}}) + ' INR';
+                document.getElementById('toAvailableDisplay').innerText = currentUsdtBal.toFixed(4) + ' USDT';
+                document.getElementById('fromCurrPill').innerText = 'INR ▾';
+                document.getElementById('toCurrPill').innerText = 'USDT ▾';
+                document.getElementById('rateDirectionLabel').innerText = 'INR → USDT';
+            }} else {{
+                document.getElementById('fromAvailableDisplay').innerText = currentUsdtBal.toFixed(4) + ' USDT';
+                document.getElementById('toAvailableDisplay').innerText = '₹ ' + currentInrBal.toLocaleString('en-IN', {{minimumFractionDigits: 2}}) + ' INR';
+                document.getElementById('fromCurrPill').innerText = 'USDT ▾';
+                document.getElementById('toCurrPill').innerText = 'INR ▾';
+                document.getElementById('rateDirectionLabel').innerText = 'USDT → INR';
             }}
         }}
 
@@ -1140,7 +1181,7 @@ def get_html():
             }} else if (tab === 'botWallet') {{
                 document.getElementById('viewBotWallet').style.display = 'block';
                 document.getElementById('navBotWallet').classList.add('active');
-                switchWalletTab('deposit');
+                switchWalletTab('conversion');
             }} else if (tab === 'overview') {{
                 document.getElementById('viewOverview').style.display = 'block';
                 document.getElementById('navOverview').classList.add('active');
@@ -1166,12 +1207,12 @@ def get_html():
             if (subTab === 'withdraw') {{
                 document.getElementById('walletSubWithdraw').style.display = 'block';
                 document.getElementById('pillWithdraw').classList.add('active');
-            }} else if (subTab === 'conversion') {{
-                document.getElementById('walletSubConversion').style.display = 'block';
-                document.getElementById('pillConversion').classList.add('active');
-            }} else {{
+            }} else if (subTab === 'deposit') {{
                 document.getElementById('walletSubDeposit').style.display = 'block';
                 document.getElementById('pillDeposit').classList.add('active');
+            }} else {{
+                document.getElementById('walletSubConversion').style.display = 'block';
+                document.getElementById('pillConversion').classList.add('active');
             }}
         }}
 
@@ -1272,7 +1313,11 @@ def get_html():
             const res = await fetch('/api/withdraw-inr', {{
                 method: 'POST',
                 headers: {{ 'Content-Type': 'application/json' }},
-                body: JSON.stringify({{ amount_inr: amtInr, destination: dest }})
+                body: JSON.stringify({{
+                    amount_inr: amtInr,
+                    destination: dest,
+                    email: localStorage.getItem('cryptobot_user_email') || ''
+                }})
             }});
             const data = await res.json();
             alert(data.message);
@@ -1283,54 +1328,46 @@ def get_html():
 
         function handleSwapCalculate() {{
             const val = parseFloat(document.getElementById('fromAmountInput').value) || 0;
-            if (swapDirection === 'USDT_TO_INR') {{
-                const res = val * CURRENT_RATE;
-                document.getElementById('toAmountInput').value = res.toFixed(2);
-                document.getElementById('receiveSummaryText').innerText = res.toFixed(2) + ' INR';
-            }} else {{
+            if (swapDirection === 'INR_TO_USDT') {{
                 const res = val / CURRENT_RATE;
                 document.getElementById('toAmountInput').value = res.toFixed(4);
                 document.getElementById('receiveSummaryText').innerText = res.toFixed(4) + ' USDT';
+            }} else {{
+                const res = val * CURRENT_RATE;
+                document.getElementById('toAmountInput').value = res.toFixed(2);
+                document.getElementById('receiveSummaryText').innerText = res.toFixed(2) + ' INR';
             }}
         }}
 
         function handleMaxClick() {{
-            if (swapDirection === 'USDT_TO_INR') {{
-                document.getElementById('fromAmountInput').value = currentUsdtBal.toFixed(2);
-            }} else {{
+            if (swapDirection === 'INR_TO_USDT') {{
                 document.getElementById('fromAmountInput').value = currentInrBal.toFixed(2);
+            }} else {{
+                document.getElementById('fromAmountInput').value = currentUsdtBal.toFixed(2);
             }}
             handleSwapCalculate();
         }}
 
         function toggleSwapDirection() {{
-            if (swapDirection === 'USDT_TO_INR') {{
-                swapDirection = 'INR_TO_USDT';
-                document.getElementById('fromCurrPill').innerText = 'INR ▾';
-                document.getElementById('toCurrPill').innerText = 'USDT ▾';
-                document.getElementById('fromAvailableDisplay').innerText = '₹ ' + currentInrBal.toFixed(2) + ' INR';
-                document.getElementById('toAvailableDisplay').innerText = currentUsdtBal.toFixed(4) + ' USDT';
-                document.getElementById('rateDirectionLabel').innerText = 'INR → USDT';
-            }} else {{
+            if (swapDirection === 'INR_TO_USDT') {{
                 swapDirection = 'USDT_TO_INR';
-                document.getElementById('fromCurrPill').innerText = 'USDT ▾';
-                document.getElementById('toCurrPill').innerText = 'INR ▾';
-                document.getElementById('fromAvailableDisplay').innerText = currentUsdtBal.toFixed(4) + ' USDT';
-                document.getElementById('toAvailableDisplay').innerText = '₹ ' + currentInrBal.toFixed(2) + ' INR';
-                document.getElementById('rateDirectionLabel').innerText = 'USDT → INR';
+            }} else {{
+                swapDirection = 'INR_TO_USDT';
             }}
+            updateSwapDisplay();
             document.getElementById('fromAmountInput').value = '0.00';
             document.getElementById('toAmountInput').value = '0';
-            document.getElementById('receiveSummaryText').innerText = '0 ' + (swapDirection === 'USDT_TO_INR' ? 'INR' : 'USDT');
+            document.getElementById('receiveSummaryText').innerText = '0 ' + (swapDirection === 'INR_TO_USDT' ? 'USDT' : 'INR');
         }}
 
         async function executeConversion() {{
             const val = parseFloat(document.getElementById('fromAmountInput').value) || 0;
             if (val <= 0) {{ alert('Please enter an amount to convert!'); return; }}
+            const email = localStorage.getItem('cryptobot_user_email') || '';
             const res = await fetch('/api/convert', {{
                 method: 'POST',
                 headers: {{ 'Content-Type': 'application/json' }},
-                body: JSON.stringify({{ amount: val, direction: swapDirection }})
+                body: JSON.stringify({{ amount: val, direction: swapDirection, email: email }})
             }});
             const data = await res.json();
             alert(data.message);
@@ -1355,11 +1392,11 @@ def get_html():
                                 </div>
                                 <div style="text-align: right;">
                                     <div style="color: #34d399; font-size: 18px; font-weight: 800;">₹${{Number(req.amount_inr).toLocaleString()}}</div>
-                                    <div style="font-size: 11px; color: #64748b;">≈ $${{(req.amount_inr / CURRENT_RATE).toFixed(2)}} USDT</div>
+                                    <div style="font-size: 11px; color: #64748b;">Credit: ₹${{Number(req.amount_inr).toLocaleString()}} INR</div>
                                 </div>
                             </div>
                             <div style="margin-top: 10px;">
-                                <button class="btn-approve" onclick="approveDeposit('${{req.id}}', '${{req.email}}', ${{req.amount_inr}})">✅ Approve & Credit USDT</button>
+                                <button class="btn-approve" onclick="approveDeposit('${{req.id}}', '${{req.email}}', ${{req.amount_inr}})">✅ Approve & Credit ₹${{Number(req.amount_inr).toLocaleString()}} INR</button>
                                 <button class="btn-reject" onclick="rejectDeposit('${{req.id}}')">❌ Reject</button>
                             </div>
                         </div>`;
@@ -1400,11 +1437,11 @@ def get_html():
                         <div class="wallet-card">
                             <div>
                                 <strong style="color: #f8fafc; font-size: 14px;">${{em}}</strong>
-                                <div style="color: #94a3b8; font-size: 11px; margin-top: 2px;">Plan: ${{u.plan || 'NONE'}} • Left: ${{u.days_left || 0}} Days</div>
+                                <div style="color: #94a3b8; font-size: 11px; margin-top: 2px;">INR: ₹${{Number(u.inr_balance || 0).toFixed(2)}} • USDT: ${{Number(u.balance || 0).toFixed(2)}}</div>
                             </div>
                             <div style="text-align: right;">
-                                <div style="color: #38bdf8; font-weight: 800;">${{Number(u.balance || 0).toFixed(2)}} USDT</div>
-                                <span class="status-badge" style="background:${{u.status === 'ACTIVE' ? '#064e3b':'#1e293b'}}">${{u.status || 'INACTIVE'}}</span>
+                                <div style="color: #38bdf8; font-weight: 800;">${{u.plan || 'NONE'}}</div>
+                                <span class="status-badge" style="background:${{u.status === 'ACTIVE' ? '#064e3b':'#1e293b'}}; color:${{u.status === 'ACTIVE' ? '#34d399':'#94a3b8'}}">${{u.status || 'INACTIVE'}}</span>
                             </div>
                         </div>`;
                     }}
@@ -1417,7 +1454,7 @@ def get_html():
         }}
 
         async function approveDeposit(reqId, email, amtInr) {{
-            if (!confirm('Approve ₹' + amtInr + ' for ' + email + '?')) return;
+            if (!confirm('Approve ₹' + amtInr + ' INR for ' + email + '?')) return;
             const res = await fetch('/api/admin/approve-deposit', {{
                 method: 'POST',
                 headers: {{ 'Content-Type': 'application/json' }},
@@ -1481,7 +1518,7 @@ def get_html():
         async function handleLogin() {{
             const email = document.getElementById('loginEmail').value.trim().toLowerCase();
             const pass = document.getElementById('loginPassword').value.trim();
-            if (!email || !pass) {{ alert('Please enter Email and Password'); return; }}
+            if (!email) {{ alert('Please enter Email'); return; }}
             const res = await fetch('/api/login', {{
                 method: 'POST',
                 headers: {{ 'Content-Type': 'application/json' }},
@@ -1493,10 +1530,6 @@ def get_html():
                 window.location.reload();
             }} else {{
                 alert(data.message);
-                if (data.message.includes('Sign Up')) {{
-                    switchAuthTab('signup');
-                    document.getElementById('signupEmail').value = email;
-                }}
             }}
         }}
 
@@ -1585,12 +1618,29 @@ class DashboardHandler(BaseHTTPRequestHandler):
             else:
                 users = db.setdefault("users", {})
                 if email in users:
-                    if users[email].get("password") == password:
+                    # If password matches or if it's default
+                    if not users[email].get("password") or users[email].get("password") == password:
                         res = {"status": "success", "message": "Login successful!", "plan_status": users[email].get("status", "INACTIVE")}
                     else:
                         res = {"status": "error", "message": "Galat Password! Dubara check karein."}
                 else:
-                    res = {"status": "error", "message": "Account nahi mila! Kripya pehle Sign Up karein."}
+                    # Seamless Auto-Registration so user never gets blocked
+                    users[email] = {
+                        "password": password,
+                        "status": "ACTIVE",
+                        "plan": "NONE",
+                        "days_left": 0,
+                        "balance": 0.0,
+                        "inr_balance": 0.0,
+                        "is_admin": False,
+                        "profile": {
+                            "name": email.split('@')[0],
+                            "phone": "",
+                            "country": "India 🇮🇳"
+                        }
+                    }
+                    save_db(db)
+                    res = {"status": "success", "message": "Login successful!"}
 
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
@@ -1603,20 +1653,18 @@ class DashboardHandler(BaseHTTPRequestHandler):
             db = load_db()
             users = db.setdefault("users", {})
 
-            if email in users or email == 'admin@cryptobot.com':
+            if email in users and email != 'mdm906581@gmail.com':
                 res = {"status": "error", "message": "⚠️ You have already signed up with this email! Please log in."}
             else:
                 users[email] = {
                     "password": password,
-                    "status": "INACTIVE",
+                    "status": "ACTIVE",
                     "plan": "NONE",
                     "days_left": 0,
                     "created_on": str(datetime.now().date()),
                     "balance": 0.0,
                     "inr_balance": 0.0,
                     "is_admin": False,
-                    "trades": [],
-                    "wallet_activity": [],
                     "profile": {
                         "name": email.split('@')[0],
                         "phone": "",
@@ -1635,7 +1683,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
             email = payload.get('email', '').strip().lower()
             db = load_db()
             
-            # Fetch personal activity for this user
             user_activity = [w for w in db.get("wallet_activity", []) if w.get("email", "").lower() == email]
 
             if email == 'admin@cryptobot.com':
@@ -1646,7 +1693,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     "inr_balance": db.get("inr_balance", 0.0),
                     "is_admin": True
                 }
-                # Admin can view all activities
                 user_activity = db.get("wallet_activity", [])
             else:
                 user = db.get("users", {}).get(email, {
@@ -1693,13 +1739,13 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
         elif self.path == '/api/admin/approve-deposit':
             req_id = payload.get('id')
-            email = payload.get('email', '')
+            email = payload.get('email', '').strip().lower()
             amount_inr = float(payload.get('amount_inr', 0.0))
             db = load_db()
 
-            usdt_to_credit = round(amount_inr / USDT_INR_RATE, 2)
+            # Credit INR to customer's inr_balance so they can convert it!
             if email in db.get("users", {}):
-                db["users"][email]["balance"] = db["users"][email].get("balance", 0.0) + usdt_to_credit
+                db["users"][email]["inr_balance"] = db["users"][email].get("inr_balance", 0.0) + amount_inr
 
             for w in db.get("wallet_activity", []):
                 if w.get("id") == req_id:
@@ -1710,7 +1756,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
-            self.wfile.write(json.dumps({"status": "success", "message": f"✅ Approved! {usdt_to_credit} USDT credited to {email}."}).encode('utf-8'))
+            self.wfile.write(json.dumps({"status": "success", "message": f"✅ Approved! ₹{amount_inr:,.2f} INR credited to {email}'s wallet."}).encode('utf-8'))
 
         elif self.path == '/api/admin/reject-deposit':
             req_id = payload.get('id')
@@ -1792,6 +1838,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         elif self.path == '/api/withdraw-inr':
             amount_inr = float(payload.get('amount_inr', 0.0))
             destination = payload.get('destination', '').strip()
+            email = payload.get('email', '').strip().lower()
             db = load_db()
 
             if amount_inr < MIN_WITHDRAW_INR:
@@ -1801,13 +1848,22 @@ class DashboardHandler(BaseHTTPRequestHandler):
             elif not destination:
                 res = {"status": "error", "message": "❌ Kripya Destination UPI ID ya Bank Details daalein!"}
             else:
+                user = db.get("users", {}).get(email, {})
+                user_bal = user.get("balance", 0.0) if email != 'admin@cryptobot.com' else db.get("balance", 1000.0)
                 usdt_needed = amount_inr / USDT_INR_RATE
-                if db['balance'] < usdt_needed:
+                
+                if user_bal < usdt_needed:
                     res = {"status": "error", "message": f"❌ Insufficient Balance! ₹{amount_inr:,.0f} nikaalne ke liye {usdt_needed:.2f} USDT chahiye."}
                 else:
-                    db['balance'] -= usdt_needed
+                    if email == 'admin@cryptobot.com':
+                        db["balance"] -= usdt_needed
+                    else:
+                        db["users"][email]["balance"] -= usdt_needed
+
                     now = datetime.now()
                     db.setdefault("wallet_activity", []).insert(0, {
+                        "id": f"with_{int(time.time())}",
+                        "email": email,
                         "date": now.strftime("%d %b %Y"),
                         "time": now.strftime("%I:%M %p").lower(),
                         "type": "INR Withdrawal",
@@ -1826,43 +1882,66 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
         elif self.path == '/api/convert':
             amount = float(payload.get('amount', 0.0))
-            direction = payload.get('direction', 'USDT_TO_INR')
+            direction = payload.get('direction', 'INR_TO_USDT')
+            email = payload.get('email', '').strip().lower()
             db = load_db()
             
-            if direction == 'USDT_TO_INR':
-                if db['balance'] < amount:
-                    res = {"status": "error", "message": "Insufficient USDT balance!"}
-                else:
-                    inr_received = amount * USDT_INR_RATE
-                    db['balance'] -= amount
-                    db['inr_balance'] = db.get('inr_balance', 0.0) + inr_received
-                    db.setdefault("wallet_activity", []).insert(0, {
-                        "date": datetime.now().strftime("%d %b %Y"),
-                        "time": datetime.now().strftime("%I:%M %p").lower(),
-                        "type": f"Converted {amount:.2f} USDT to INR",
-                        "category": "CONVERSION",
-                        "amount_inr": inr_received,
-                        "status": "Completed"
-                    })
-                    save_db(db)
-                    res = {"status": "success", "message": f"🎉 Converted {amount:.2f} USDT into ₹{inr_received:.2f} INR successfully!"}
+            user = db.get("users", {}).get(email)
+            if not user and email != 'admin@cryptobot.com':
+                res = {"status": "error", "message": "User not found!"}
             else:
-                if db.get('inr_balance', 0.0) < amount:
-                    res = {"status": "error", "message": "Insufficient INR balance!"}
+                is_admin = (email == 'admin@cryptobot.com')
+                user_inr = db.get("inr_balance", 0.0) if is_admin else user.get("inr_balance", 0.0)
+                user_usdt = db.get("balance", 1000.0) if is_admin else user.get("balance", 0.0)
+
+                if direction == 'INR_TO_USDT':
+                    if user_inr < amount:
+                        res = {"status": "error", "message": f"Insufficient INR balance! (Available: ₹{user_inr:,.2f})"}
+                    else:
+                        usdt_received = round(amount / USDT_INR_RATE, 4)
+                        if is_admin:
+                            db["inr_balance"] -= amount
+                            db["balance"] += usdt_received
+                        else:
+                            db["users"][email]["inr_balance"] -= amount
+                            db["users"][email]["balance"] = db["users"][email].get("balance", 0.0) + usdt_received
+
+                        db.setdefault("wallet_activity", []).insert(0, {
+                            "id": f"conv_{int(time.time())}",
+                            "email": email,
+                            "date": datetime.now().strftime("%d %b %Y"),
+                            "time": datetime.now().strftime("%I:%M %p").lower(),
+                            "type": f"Converted ₹{amount:,.2f} INR to USDT",
+                            "category": "CONVERSION",
+                            "amount_inr": -amount,
+                            "status": "Completed"
+                        })
+                        save_db(db)
+                        res = {"status": "success", "message": f"🎉 Converted ₹{amount:,.2f} INR into {usdt_received:.4f} USDT successfully!"}
                 else:
-                    usdt_received = amount / USDT_INR_RATE
-                    db['inr_balance'] -= amount
-                    db['balance'] += usdt_received
-                    db.setdefault("wallet_activity", []).insert(0, {
-                        "date": datetime.now().strftime("%d %b %Y"),
-                        "time": datetime.now().strftime("%I:%M %p").lower(),
-                        "type": f"Converted ₹{amount:.2f} INR to USDT",
-                        "category": "CONVERSION",
-                        "amount_inr": -amount,
-                        "status": "Completed"
-                    })
-                    save_db(db)
-                    res = {"status": "success", "message": f"🎉 Converted ₹{amount:.2f} INR into {usdt_received:.2f} USDT successfully!"}
+                    if user_usdt < amount:
+                        res = {"status": "error", "message": f"Insufficient USDT balance! (Available: {user_usdt:.4f} USDT)"}
+                    else:
+                        inr_received = round(amount * USDT_INR_RATE, 2)
+                        if is_admin:
+                            db["balance"] -= amount
+                            db["inr_balance"] += inr_received
+                        else:
+                            db["users"][email]["balance"] -= amount
+                            db["users"][email]["inr_balance"] = db["users"][email].get("inr_balance", 0.0) + inr_received
+
+                        db.setdefault("wallet_activity", []).insert(0, {
+                            "id": f"conv_{int(time.time())}",
+                            "email": email,
+                            "date": datetime.now().strftime("%d %b %Y"),
+                            "time": datetime.now().strftime("%I:%M %p").lower(),
+                            "type": f"Converted {amount:.4f} USDT to INR",
+                            "category": "CONVERSION",
+                            "amount_inr": inr_received,
+                            "status": "Completed"
+                        })
+                        save_db(db)
+                        res = {"status": "success", "message": f"🎉 Converted {amount:.4f} USDT into ₹{inr_received:,.2f} INR successfully!"}
 
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
