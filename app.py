@@ -73,7 +73,6 @@ def load_db():
     if "users" not in data:
         data["users"] = {}
 
-    # Permanently guarantee admin exists with admin123
     data["users"]["admin@cryptobot.com"] = {
         "password": "admin123",
         "status": "ACTIVE",
@@ -453,7 +452,6 @@ def get_html():
         .calc-breakdown {{ padding: 16px 4px; border-top: 1px solid #16233b; margin-top: 14px; }}
         .breakdown-row {{ display: flex; justify-content: space-between; font-size: 12px; color: #94a3b8; margin-bottom: 8px; }}
 
-        /* Admin Requests Card */
         .admin-req-card {{ background: #0c1527; border: 1px solid #1e293b; border-radius: 16px; padding: 18px 20px; margin-bottom: 14px; text-align: left; }}
         .btn-approve {{ background: #10b981; color: white; border: none; border-radius: 8px; padding: 8px 16px; font-weight: 700; cursor: pointer; font-size: 12px; }}
         .btn-reject {{ background: #ef4444; color: white; border: none; border-radius: 8px; padding: 8px 16px; font-weight: 700; cursor: pointer; font-size: 12px; margin-left: 8px; }}
@@ -480,8 +478,8 @@ def get_html():
             </div>
 
             <div id="loginForm">
-                <input id="loginEmail" type="email" class="input-box" placeholder="Gmail Address" value="admin@cryptobot.com">
-                <input id="loginPassword" type="password" class="input-box" placeholder="Password" value="admin123">
+                <input id="loginEmail" type="email" class="input-box" placeholder="Gmail Address">
+                <input id="loginPassword" type="password" class="input-box" placeholder="Password">
                 <button class="btn-action" onclick="handleLogin()">Login to Terminal</button>
                 <p style="font-size: 11px; color: #64748b; margin-top: 12px;">Admin: admin@cryptobot.com / admin123</p>
             </div>
@@ -514,7 +512,6 @@ def get_html():
             <button id="navTradeLogs" class="nav-item active" onclick="showTab('tradeLogs')">Trade Logs</button>
             <button id="navBotWallet" class="nav-item" onclick="showTab('botWallet')">BOT Wallet</button>
             <button id="navOverview" class="nav-item" onclick="showTab('overview')">Overview</button>
-            <!-- Hidden for regular customer, shown ONLY for Admin -->
             <button id="navAdminPanel" class="nav-item admin-tab" style="display: none;" onclick="showTab('adminPanel')">👑 Admin Panel</button>
             <button class="nav-item" onclick="logoutUser()">Logout</button>
         </div>
@@ -609,7 +606,7 @@ def get_html():
                 <button id="pillConversion" class="wallet-action-pill active" onclick="switchWalletTab('conversion')">⇄ CONVERSION</button>
             </div>
 
-            <!-- Sub-tab 1: Deposit INR (Bank Transfer Flow) -->
+            <!-- Sub-tab 1: Deposit INR -->
             <div id="walletSubDeposit" style="display: none;">
                 <div class="step-indicator">
                     <span class="step-circle" id="stepCircle1">1</span> <span id="stepLabel1" style="color: #ffffff;">PAYMENT DETAILS</span> ────── <span class="step-circle" id="stepCircle2" style="background:#1e293b; color:#94a3b8;">2</span> <span id="stepLabel2">SUBMIT PROOF</span>
@@ -854,7 +851,7 @@ def get_html():
             </div>
         </div>
 
-        <!-- TAB 5: 👑 Admin Approval Panel (Visible ONLY to Admin) -->
+        <!-- TAB 5: 👑 Admin Approval Panel -->
         <div id="viewAdminPanel" style="display: none;">
             <div style="margin-bottom: 20px; text-align: left;">
                 <h2 style="font-size: 24px; font-weight: 800; color: #fde047; margin-bottom: 6px;">👑 Master Admin Approval Panel</h2>
@@ -1342,16 +1339,14 @@ def get_html():
             window.location.reload();
         }}
 
-        /* Admin Panel Loader & Actions */
         async function loadAdminPanelData() {{
             try {{
                 const res = await fetch('/api/admin/data');
                 const d = await res.json();
                 
-                // Render Pending Deposits
                 let depHtml = '';
                 if (d.pending_deposits && d.pending_deposits.length > 0) {{
-                    d.pending_deposits.forEach((req, idx) => {{
+                    d.pending_deposits.forEach((req) => {{
                         depHtml += `
                         <div class="admin-req-card">
                             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
@@ -1376,7 +1371,6 @@ def get_html():
                 }}
                 document.getElementById('adminPendingDepositsList').innerHTML = depHtml;
 
-                // Render Pending Plans
                 let planHtml = '';
                 if (d.pending_plans && d.pending_plans.length > 0) {{
                     d.pending_plans.forEach(p => {{
@@ -1401,7 +1395,6 @@ def get_html():
                 }}
                 document.getElementById('adminPendingPlansList').innerHTML = planHtml;
 
-                // Render Users
                 let uHtml = '';
                 if (d.users) {{
                     for (const [em, u] of Object.entries(d.users)) {{
@@ -1490,6 +1483,7 @@ def get_html():
         async function handleLogin() {{
             const email = document.getElementById('loginEmail').value.trim().toLowerCase();
             const pass = document.getElementById('loginPassword').value.trim();
+            if (!email || !pass) {{ alert('Please enter Email and Password'); return; }}
             const res = await fetch('/api/login', {{
                 method: 'POST',
                 headers: {{ 'Content-Type': 'application/json' }},
@@ -1577,16 +1571,41 @@ class DashboardHandler(BaseHTTPRequestHandler):
             password = payload.get('password', '').strip()
             db = load_db()
 
-            # Guaranteed Master Admin Bypass
-            if email == 'admin@cryptobot.com' and password == 'admin123':
-                res = {"status": "success", "message": "Login successful!", "plan_status": "ACTIVE"}
-            else:
-                user = db.get("users", {}).get(email)
-                if user and user.get("password") == password:
-                    status = user.get("status", "ACTIVE")
-                    res = {"status": "success", "message": "Login successful!", "plan_status": status}
+            # 1. Guaranteed Master Admin Login
+            if email == 'admin@cryptobot.com':
+                if password == 'admin123':
+                    res = {"status": "success", "message": "Admin Login successful!", "plan_status": "ACTIVE"}
                 else:
-                    res = {"status": "error", "message": "Galat Email ya Password! Dubara check karein."}
+                    res = {"status": "error", "message": "Galat Admin Password! Dubara check karein."}
+            else:
+                # 2. Smart Customer Login (Auto-Creates account if new, checks password if existing)
+                users = db.setdefault("users", {})
+                if email in users:
+                    if users[email].get("password") == password:
+                        res = {"status": "success", "message": "Login successful!", "plan_status": users[email].get("status", "INACTIVE")}
+                    else:
+                        res = {"status": "error", "message": "Galat Password! Dubara check karein."}
+                else:
+                    # Seamless Auto-Registration
+                    users[email] = {
+                        "password": password,
+                        "status": "INACTIVE",
+                        "plan": "NONE",
+                        "days_left": 0,
+                        "created_on": str(datetime.now().date()),
+                        "balance": 0.0,
+                        "inr_balance": 0.0,
+                        "is_admin": False,
+                        "trades": [],
+                        "wallet_activity": [],
+                        "profile": {
+                            "name": email.split('@')[0],
+                            "phone": "",
+                            "country": "India 🇮🇳"
+                        }
+                    }
+                    save_db(db)
+                    res = {"status": "success", "message": "Welcome! Login successful."}
 
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
@@ -1597,28 +1616,25 @@ class DashboardHandler(BaseHTTPRequestHandler):
             email = payload.get('email', '').strip().lower()
             password = payload.get('password', '').strip()
             db = load_db()
-            if email in db.get("users", {}):
-                res = {"status": "error", "message": "Yeh Email pehle se registered hai! Kripya Login karein."}
-            else:
-                db.setdefault("users", {})[email] = {
-                    "password": password,
-                    "status": "INACTIVE",
-                    "plan": "NONE",
-                    "days_left": 0,
-                    "created_on": str(datetime.now().date()),
-                    "balance": 0.0,
-                    "inr_balance": 0.0,
-                    "is_admin": False,
-                    "trades": [],
-                    "wallet_activity": [],
-                    "profile": {
-                        "name": email.split('@')[0],
-                        "phone": "",
-                        "country": "India 🇮🇳"
-                    }
+            db.setdefault("users", {})[email] = {
+                "password": password,
+                "status": "INACTIVE",
+                "plan": "NONE",
+                "days_left": 0,
+                "created_on": str(datetime.now().date()),
+                "balance": 0.0,
+                "inr_balance": 0.0,
+                "is_admin": False,
+                "trades": [],
+                "wallet_activity": [],
+                "profile": {
+                    "name": email.split('@')[0],
+                    "phone": "",
+                    "country": "India 🇮🇳"
                 }
-                save_db(db)
-                res = {"status": "success", "message": "Account created successfully!"}
+            }
+            save_db(db)
+            res = {"status": "success", "message": "Account created successfully!"}
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
