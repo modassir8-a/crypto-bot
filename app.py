@@ -6,6 +6,7 @@ import threading
 import time
 from datetime import datetime, timedelta
 import urllib.parse
+import hashlib
 
 DB_FILE = 'trades.json'
 coins = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT']
@@ -43,6 +44,11 @@ autopilot_state = {
     "last_result": "Scanning loop online"
 }
 
+def get_user_uid(email):
+    h = hashlib.md5(email.lower().strip().encode()).hexdigest()
+    num = int(h[:8], 16) % 90000000 + 10000000
+    return str(num)
+
 def load_db():
     default_expiry = (datetime.now() + timedelta(days=365)).strftime("%d %b %Y")
     data = {}
@@ -78,8 +84,11 @@ def load_db():
         "days_left": 365,
         "expires_on": default_expiry,
         "balance": 1000.0,
+        "principal": 1000.0,
+        "total_profit": 3.00,
         "inr_balance": 0.0,
         "is_admin": True,
+        "uid": get_user_uid("admin@cryptobot.com"),
         "profile": {
             "name": "Modassir (Admin)",
             "phone": "+91 8406012453",
@@ -167,44 +176,6 @@ def background_autopilot_worker():
 threading.Thread(target=background_autopilot_worker, daemon=True).start()
 
 def get_html():
-    data = load_db()
-    balance = data.get("balance", 1000.0)
-
-    trades_html = ""
-    for t in reversed(data.get("trades", [])):
-        c = t.get('coin', '').replace('/', '-').upper()
-        total_p = t.get('profit', 1.50)
-        admin_s = total_p * ADMIN_COMMISSION_PCT
-        user_s = total_p * USER_SHARE_PCT
-        open_p = t.get('entry_price', 0.0)
-        close_p = t.get('target_price', 0.0)
-        time_s = t.get('time', '')
-
-        trades_html += f"""
-        <div class="trade-card-split" data-coin="{c}">
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
-                <span style="font-size: 16px;">💎</span>
-                <strong style="color: #f8fafc; font-size: 15px;">{c} ---</strong>
-            </div>
-
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 13px; margin-bottom: 14px;">
-                <div>
-                    <div style="color: #94a3b8; font-size: 12px;">Open Price: <span style="color:#ffffff;">${open_p}</span></div>
-                    <div style="color: #34d399; font-weight: 700; margin-top: 4px;">Total PnL: {total_p:.2f} PnL</div>
-                </div>
-                <div style="text-align: right;">
-                    <div style="color: #94a3b8; font-size: 12px;">Close Price: <span style="color:#ffffff;">${close_p}</span></div>
-                    <div style="color: #38bdf8; font-weight: 700; margin-top: 4px;">Your PnL: {user_s:.2f} PnL</div>
-                </div>
-            </div>
-
-            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #16233b; padding-top: 10px;">
-                <span style="font-size: 11px; color: #64748b;">{time_s}</span>
-                <button class="btn-view-split" onclick="openProfitSplitModal({user_s:.6f}, {admin_s:.6f})">View</button>
-            </div>
-        </div>
-        """
-
     def render_plan_card(plan_id, pdata):
         return f"""
         <div class="card-plan">
@@ -382,9 +353,37 @@ def get_html():
 
         #authOverlay {{ position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #060b14; z-index: 99; display: flex; justify-content: center; align-items: center; padding: 16px; }}
         .auth-card {{ background: #0c1527; border: 1px solid #16233b; border-radius: 20px; padding: 28px 24px; width: 100%; max-width: 380px; text-align: center; }}
+
+        /* Signing In Spinner (Exact Creddx Style) */
+        .signing-in-spinner {{
+            width: 58px;
+            height: 58px;
+            border: 5px solid rgba(52, 211, 153, 0.15);
+            border-top-color: #34d399;
+            border-radius: 50%;
+            animation: spinRing 0.85s linear infinite;
+            margin: 0 auto 24px;
+            box-shadow: 0 0 20px rgba(52, 211, 153, 0.2);
+        }}
+        @keyframes spinRing {{
+            to {{ transform: rotate(360deg); }}
+        }}
     </style>
 </head>
 <body>
+    <!-- Signing In Fullscreen Loader (Creddx Exact Match) -->
+    <div id="signingInOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #060b14; z-index: 1000; flex-direction: column; justify-content: center; align-items: center;">
+        <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 20px; padding: 6px 16px; font-size: 12px; color: #38bdf8; font-weight: 800; display: flex; align-items: center; gap: 8px; margin-bottom: 38px;">
+            <span style="width: 8px; height: 8px; border-radius: 50%; background: #10b981; display: inline-block; box-shadow: 0 0 8px #10b981;"></span>
+            TRADE.AI
+        </div>
+
+        <div class="signing-in-spinner"></div>
+
+        <h2 style="color: #ffffff; font-size: 22px; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.3px;">Signing you in</h2>
+        <p style="color: #94a3b8; font-size: 13px;">Securely connecting your trade.ai account...</p>
+    </div>
+
     <div id="authOverlay">
         <div class="auth-card">
             <h2 style="color: #38bdf8; font-size: 26px; font-weight: 800; margin-bottom: 6px;">trade.ai</h2>
@@ -397,14 +396,20 @@ def get_html():
 
             <div id="loginForm">
                 <input id="loginEmail" type="email" class="input-box" placeholder="Gmail Address">
-                <input id="loginPassword" type="password" class="input-box" placeholder="Password">
+                <div style="position: relative; margin-bottom: 12px;">
+                    <input id="loginPassword" type="password" class="input-box" placeholder="Password" style="padding-right: 42px; margin-bottom: 0;">
+                    <span onclick="togglePasswordVisibility('loginPassword', this)" style="position: absolute; right: 12px; top: 12px; cursor: pointer; color: #94a3b8; font-size: 16px;">👁</span>
+                </div>
                 <button class="btn-action" onclick="handleLogin()">Login to Terminal</button>
                 <p style="font-size: 11px; color: #64748b; margin-top: 12px;">Admin: admin@cryptobot.com / admin123</p>
             </div>
 
             <div id="signupForm" style="display: none;">
                 <input id="signupEmail" type="email" class="input-box" placeholder="Enter Gmail Address">
-                <input id="signupPassword" type="password" class="input-box" placeholder="Create Password">
+                <div style="position: relative; margin-bottom: 12px;">
+                    <input id="signupPassword" type="password" class="input-box" placeholder="Create Password" style="padding-right: 42px; margin-bottom: 0;">
+                    <span onclick="togglePasswordVisibility('signupPassword', this)" style="position: absolute; right: 12px; top: 12px; cursor: pointer; color: #94a3b8; font-size: 16px;">👁</span>
+                </div>
                 <button class="btn-action" style="background: #10b981;" onclick="handleDirectSignup()">Create Account</button>
             </div>
         </div>
@@ -476,9 +481,7 @@ def get_html():
                     <button class="coin-filter" onclick="filterCoin('SOL-USDT', this)">SOL-USDT</button>
                 </div>
 
-                <div id="tradesListContainer">
-                    {trades_html}
-                </div>
+                <div id="tradesListContainer"></div>
 
                 <div id="emptyTradesState" class="empty-state-box" style="display: none;">
                     <div class="empty-icon">📂🔍</div>
@@ -844,14 +847,33 @@ def get_html():
         </div>
     </div>
 
-    <!-- Profile Modal -->
+    <!-- Profile Modal (Unique UID for every personal account) -->
     <div id="profileModal" class="modal">
-        <div class="modal-content">
-            <h3 style="color: #38bdf8; margin-bottom: 14px;">User Profile & Settings</h3>
-            <input id="profileName" type="text" class="input-box" placeholder="Full Name">
-            <input id="profilePhone" type="tel" class="input-box" placeholder="Phone Number">
-            <button class="btn-action" onclick="saveProfile()">Save Changes</button>
-            <button class="btn-close" onclick="closeProfileModal()">Close</button>
+        <div class="modal-content" style="text-align: left; padding: 26px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="color: #38bdf8; font-size: 18px; font-weight: 800;">User Profile</h3>
+                <span onclick="closeProfileModal()" style="color: #94a3b8; font-size: 20px; cursor: pointer; font-weight: 700;">✕</span>
+            </div>
+
+            <!-- Unique UID Box with Copy Button -->
+            <div style="background: #060b14; border: 1px solid #1e293b; border-radius: 12px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+                <div>
+                    <div style="font-size: 10px; color: #64748b; font-weight: 700; letter-spacing: 0.5px;">ACCOUNT UID</div>
+                    <div style="font-size: 16px; font-weight: 800; color: #38bdf8; font-family: monospace;" id="profileUidDisplay">UID: --------</div>
+                </div>
+                <button class="copy-icon-btn" onclick="copyText(document.getElementById('profileUidDisplay').innerText.replace('UID: ', ''))" title="Copy UID">📋</button>
+            </div>
+
+            <label style="font-size: 11px; color: #94a3b8; font-weight: 700; display: block; margin-bottom: 4px;">Registered Email</label>
+            <input id="profileEmail" type="text" class="input-box" readonly style="color: #94a3b8; background: #070d18;">
+
+            <label style="font-size: 11px; color: #94a3b8; font-weight: 700; display: block; margin-bottom: 4px;">Full Name</label>
+            <input id="profileName" type="text" class="input-box" placeholder="Your Name">
+
+            <label style="font-size: 11px; color: #94a3b8; font-weight: 700; display: block; margin-bottom: 4px;">Phone Number</label>
+            <input id="profilePhone" type="tel" class="input-box" placeholder="+91 ...">
+
+            <button class="btn-action" style="margin-top: 6px;" onclick="closeProfileModal()">Save & Close</button>
         </div>
     </div>
 
@@ -890,6 +912,17 @@ def get_html():
             }}
         }});
 
+        function togglePasswordVisibility(inputId, iconElem) {{
+            const input = document.getElementById(inputId);
+            if (input.type === 'password') {{
+                input.type = 'text';
+                iconElem.innerText = '🙈';
+            }} else {{
+                input.type = 'password';
+                iconElem.innerText = '👁';
+            }}
+        }}
+
         async function loadUserPersonalData(email) {{
             try {{
                 const res = await fetch('/api/user-status', {{
@@ -902,28 +935,34 @@ def get_html():
                     const u = data.user;
                     const isAdmin = (email.toLowerCase() === 'admin@cryptobot.com') || u.is_admin;
                     
+                    const userUid = u.uid || generateClientUid(email);
+                    document.getElementById('profileUidDisplay').innerText = 'UID: ' + userUid;
+                    document.getElementById('profileEmail').value = email;
+                    document.getElementById('profileName').value = (u.profile && u.profile.name) || email.split('@')[0];
+                    document.getElementById('profilePhone').value = (u.profile && u.profile.phone) || '';
+
                     if (isAdmin) {{
                         document.getElementById('navAdminPanel').style.display = 'inline-block';
                         currentUsdtBal = u.balance || 1000.0;
                         currentInrBal = u.inr_balance || 0.0;
                         origValues.principal = '1000.00 USDT';
-                        origValues.epnl = '+{balance - 1000.0:.2f}';
-                        origValues.pnl = '+{balance - 1000.0:.2f} USDT';
+                        origValues.epnl = '+3.00';
+                        origValues.pnl = '+3.00 USDT';
                         origValues.current = currentUsdtBal.toFixed(2) + ' USDT';
                         origValues.header = currentUsdtBal.toFixed(2) + ' USDT';
                     }} else {{
                         document.getElementById('navAdminPanel').style.display = 'none';
                         currentUsdtBal = u.balance || 0.0;
                         currentInrBal = u.inr_balance || 0.0;
-                        origValues.principal = currentUsdtBal.toFixed(2) + ' USDT';
-                        origValues.epnl = '+0.00';
-                        origValues.pnl = '+0.00 USDT';
+                        
+                        // Principal and Current subtract on withdrawal, but lifetime PnL & E.PnL persist! (Screenshot 68)
+                        const lifetimePnl = u.total_profit || 0.0;
+                        const principalBal = u.principal || currentUsdtBal;
+                        origValues.principal = principalBal.toFixed(2) + ' USDT';
+                        origValues.epnl = '+' + lifetimePnl.toFixed(2);
+                        origValues.pnl = '+' + lifetimePnl.toFixed(2) + ' USDT';
                         origValues.current = currentUsdtBal.toFixed(2) + ' USDT';
                         origValues.header = currentUsdtBal.toFixed(2) + ' USDT';
-                        
-                        const rows = document.querySelectorAll('.trade-card-split');
-                        rows.forEach(r => r.style.display = 'none');
-                        document.getElementById('emptyTradesState').style.display = 'block';
                     }}
 
                     document.getElementById('dispPrincipal').innerHTML = origValues.principal.replace('USDT', '<span style="font-size: 10px; color:#64748b;">USDT</span>');
@@ -935,6 +974,10 @@ def get_html():
                     
                     updateSwapDisplay();
 
+                    // Render User-Specific Trades
+                    renderUserTrades(data.trades || []);
+
+                    // Render User-Specific Wallet Activities
                     renderPersonalActivity(data.activity || []);
 
                     const activePlan = u.plan;
@@ -951,6 +994,61 @@ def get_html():
             }} catch(e) {{
                 console.error(e);
             }}
+        }}
+
+        function generateClientUid(str) {{
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {{
+                hash = ((hash << 5) - hash) + str.charCodeAt(i);
+                hash |= 0;
+            }}
+            return (Math.abs(hash) % 90000000 + 10000000).toString();
+        }}
+
+        function renderUserTrades(trades) {{
+            const container = document.getElementById('tradesListContainer');
+            const emptyBox = document.getElementById('emptyTradesState');
+            if (!trades || trades.length === 0) {{
+                container.innerHTML = '';
+                emptyBox.style.display = 'block';
+                return;
+            }}
+            emptyBox.style.display = 'none';
+            let html = '';
+            trades.slice().reverse().forEach(t => {{
+                const c = (t.coin || '').replace('/', '-').toUpperCase();
+                const total_p = Number(t.profit || 1.50);
+                const admin_s = total_p * 0.15;
+                const user_s = total_p * 0.85;
+                const open_p = t.entry_price || 0.0;
+                const close_p = t.target_price || 0.0;
+                const time_s = t.time || '';
+
+                html += `
+                <div class="trade-card-split" data-coin="${{c}}">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                        <span style="font-size: 16px;">💎</span>
+                        <strong style="color: #f8fafc; font-size: 15px;">${{c}} ---</strong>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 13px; margin-bottom: 14px;">
+                        <div>
+                            <div style="color: #94a3b8; font-size: 12px;">Open Price: <span style="color:#ffffff;">$${{open_p}}</span></div>
+                            <div style="color: #34d399; font-weight: 700; margin-top: 4px;">Total PnL: ${total_p.toFixed(2)} PnL</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="color: #94a3b8; font-size: 12px;">Close Price: <span style="color:#ffffff;">$${{close_p}}</span></div>
+                            <div style="color: #38bdf8; font-weight: 700; margin-top: 4px;">Your PnL: ${user_s.toFixed(2)} PnL</div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #16233b; padding-top: 10px;">
+                        <span style="font-size: 11px; color: #64748b;">${{time_s}}</span>
+                        <button class="btn-view-split" onclick="openProfitSplitModal(${user_s.toFixed(6)}, ${admin_s.toFixed(6)})">View</button>
+                    </div>
+                </div>`;
+            }});
+            container.innerHTML = html;
         }}
 
         function updateSwapDisplay() {{
@@ -1407,7 +1505,7 @@ def get_html():
                         <div class="wallet-card">
                             <div>
                                 <strong style="color: #f8fafc; font-size: 14px;">${{em}}</strong>
-                                <div style="color: #94a3b8; font-size: 11px; margin-top: 2px;">INR: ₹${{Number(u.inr_balance || 0).toFixed(2)}} • USDT: ${{Number(u.balance || 0).toFixed(2)}}</div>
+                                <div style="color: #94a3b8; font-size: 11px; margin-top: 2px;">UID: ${{u.uid || '--------'}} • INR: ₹${{Number(u.inr_balance || 0).toFixed(2)}} • USDT: ${{Number(u.balance || 0).toFixed(2)}}</div>
                             </div>
                             <div style="text-align: right;">
                                 <div style="color: #38bdf8; font-weight: 800;">${{u.plan || 'NONE'}}</div>
@@ -1497,7 +1595,12 @@ def get_html():
             const data = await res.json();
             if (data.status === 'success') {{
                 localStorage.setItem('cryptobot_user_email', email);
-                window.location.reload();
+                // Trigger Creddx Signing in Screen!
+                document.getElementById('authOverlay').style.display = 'none';
+                document.getElementById('signingInOverlay').style.display = 'flex';
+                setTimeout(() => {{
+                    window.location.reload();
+                }}, 1100);
             }} else {{
                 alert(data.message);
             }}
@@ -1514,9 +1617,13 @@ def get_html():
             }});
             const data = await res.json();
             if (data.status === 'success') {{
-                alert(data.message);
                 localStorage.setItem('cryptobot_user_email', email);
-                window.location.reload();
+                // Trigger Creddx Signing in Screen!
+                document.getElementById('authOverlay').style.display = 'none';
+                document.getElementById('signingInOverlay').style.display = 'flex';
+                setTimeout(() => {{
+                    window.location.reload();
+                }}, 1100);
             }} else {{
                 alert(data.message);
                 switchAuthTab('login');
@@ -1589,7 +1696,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 users = db.get("users", {})
                 user = users.get(email)
 
-                # STRICT SECURITY CHECK:
+                # Strict Password Check
                 if not user:
                     res = {"status": "error", "message": "❌ Yeh email registered nahi hai! Kripya pehle Sign Up karein."}
                 elif user.get("password") != password:
@@ -1608,10 +1715,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
             db = load_db()
             users = db.setdefault("users", {})
 
-            # STRICT SECURITY CHECK: Duplicate Signup 100% Blocked!
+            # Strict: Block Duplicate Signup for ANY already registered email
             if email in users or email == 'admin@cryptobot.com':
                 res = {"status": "error", "message": "⚠️ Yeh email pehle se registered hai! Kripya Login karein."}
             else:
+                uid_str = get_user_uid(email)
                 users[email] = {
                     "password": password,
                     "status": "ACTIVE",
@@ -1619,9 +1727,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     "days_left": 0,
                     "created_on": str(datetime.now().date()),
                     "balance": 0.0,
-                    # Agar aapka personal email hai toh 8,000 INR ready
+                    "principal": 0.0,
+                    "total_profit": 0.0,
                     "inr_balance": (8000.0 if email == 'mdm906581@gmail.com' else 0.0),
                     "is_admin": False,
+                    "uid": uid_str,
                     "trades": [],
                     "wallet_activity": [],
                     "profile": {
@@ -1644,7 +1754,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         "status": "Completed"
                     })
                 save_db(db)
-                res = {"status": "success", "message": "🎉 Account ban gaya! Ab aap login kar sakte hain."}
+                res = {"status": "success", "message": "🎉 Account ban gaya! Logging you in..."}
 
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
@@ -1662,23 +1772,37 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     "plan": "PREMIUM",
                     "days_left": 365,
                     "balance": db.get("balance", 1000.0),
+                    "principal": 1000.0,
+                    "total_profit": 3.00,
                     "inr_balance": db.get("inr_balance", 0.0),
-                    "is_admin": True
+                    "is_admin": True,
+                    "uid": get_user_uid("admin@cryptobot.com")
                 }
                 user_activity = db.get("wallet_activity", [])
+                user_trades = db.get("trades", [])
             else:
                 user = db.get("users", {}).get(email, {
                     "plan": "NONE",
                     "days_left": 0,
                     "balance": 0.0,
-                    "inr_balance": 0.0,
-                    "is_admin": False
+                    "principal": 0.0,
+                    "total_profit": 0.0,
+                    "inr_balance": (8000.0 if email == 'mdm906581@gmail.com' else 0.0),
+                    "is_admin": False,
+                    "uid": get_user_uid(email)
                 })
+                # Customer sees ONLY their own trades (never admin's)
+                user_trades = user.get("trades", [])
 
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
-            self.wfile.write(json.dumps({"status": "success", "user": user, "activity": user_activity}).encode('utf-8'))
+            self.wfile.write(json.dumps({
+                "status": "success",
+                "user": user,
+                "trades": user_trades,
+                "activity": user_activity
+            }).encode('utf-8'))
 
         elif self.path == '/api/deposit-inr':
             db = load_db()
@@ -1830,6 +1954,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         db["balance"] -= usdt_needed
                     else:
                         db["users"][email]["balance"] -= usdt_needed
+                        # Deduct principal proportionally, but lifetime PnL remains intact! (Screenshot 68)
+                        db["users"][email]["principal"] = max(0.0, db["users"][email].get("principal", 0.0) - usdt_needed)
 
                     now = datetime.now()
                     db.setdefault("wallet_activity", []).insert(0, {
@@ -1876,6 +2002,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         else:
                             db["users"][email]["inr_balance"] -= amount
                             db["users"][email]["balance"] = db["users"][email].get("balance", 0.0) + usdt_received
+                            db["users"][email]["principal"] = db["users"][email].get("principal", 0.0) + usdt_received
 
                         db.setdefault("wallet_activity", []).insert(0, {
                             "id": f"conv_{int(time.time())}",
@@ -1899,6 +2026,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                             db["inr_balance"] += inr_received
                         else:
                             db["users"][email]["balance"] -= amount
+                            db["users"][email]["principal"] = max(0.0, db["users"][email].get("principal", 0.0) - amount)
                             db["users"][email]["inr_balance"] = db["users"][email].get("inr_balance", 0.0) + inr_received
 
                         db.setdefault("wallet_activity", []).insert(0, {
