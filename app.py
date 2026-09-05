@@ -17,7 +17,6 @@ PAYEE_NAME = "trade.ai"
 PLAN_PRICE_INR = 999
 USDT_INR_RATE = 91.50
 
-# Withdrawal Limits (INR)
 MIN_WITHDRAW_INR = 1000.0
 MAX_WITHDRAW_INR = 10000.0
 
@@ -161,10 +160,9 @@ def get_html():
     profit = balance - 1000.0
     profit_sign = "+" if profit >= 0 else ""
 
-    # Realized Trades HTML
     trades_html = ""
     for t in reversed(data.get("trades", [])):
-        c = t.get('coin', '').replace('/', '-')
+        c = t.get('coin', '').replace('/', '-').upper()
         trades_html += f"""
         <div class="trade-row" data-coin="{c}">
             <div style="display: flex; align-items: center; gap: 12px;">
@@ -182,9 +180,8 @@ def get_html():
         """
 
     if not trades_html:
-        trades_html = "<div style='text-align: center; color: #64748b; padding: 24px;'>No realized trade history yet.</div>"
+        trades_html = "<div id='emptyTradesMsg' style='text-align: center; color: #64748b; padding: 24px;'>No realized trade history yet.</div>"
 
-    # Wallet Activity HTML
     wallet_html = ""
     total_invested = 0.0
     total_withdrawn = 0.0
@@ -223,7 +220,6 @@ def get_html():
         body {{ background: #060b14; color: #f8fafc; padding: 18px 12px; min-height: 100vh; }}
         .container {{ max-width: 680px; margin: 0 auto; }}
 
-        /* Top Bar */
         .top-bar {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }}
         .pill-home {{ background: #0c1527; border: 1px solid #1e293b; color: #38bdf8; border-radius: 20px; padding: 6px 16px; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px; cursor: pointer; text-decoration: none; }}
         .live-pill {{ background: #0b1a2f; border: 1px solid #133256; border-radius: 20px; padding: 6px 14px; font-size: 12px; display: flex; align-items: center; gap: 8px; color: #38bdf8; font-weight: 700; }}
@@ -231,43 +227,37 @@ def get_html():
         .green-dot {{ width: 8px; height: 8px; border-radius: 50%; background: #10b981; display: inline-block; box-shadow: 0 0 8px #10b981; }}
         .avatar-btn {{ width: 36px; height: 36px; border-radius: 50%; background: #38bdf8; color: #060b14; display: flex; justify-content: center; align-items: center; font-weight: 800; font-size: 14px; cursor: pointer; border: none; }}
 
-        /* Navbar */
-        .nav-bar {{ background: #0c1527; border: 1px solid #16233b; border-radius: 28px; padding: 6px 10px; display: flex; justify-content: space-between; align-items: center; overflow-x: auto; margin-bottom: 20px; gap: 6px; }}
+        .nav-bar {{ background: #0c1527; border: 1px solid #16233b; border-radius: 28px; padding: 6px 10px; display: flex; justify-content: space-between; align-items: center; overflow-x: auto; margin-bottom: 24px; gap: 6px; }}
         .nav-item {{ color: #94a3b8; text-decoration: none; font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 20px; white-space: nowrap; cursor: pointer; border: none; background: transparent; }}
         .nav-item.active {{ background: #0284c7; color: #ffffff; font-weight: 700; }}
 
-        .btn-growth {{ background: #0284c7; color: #ffffff; border: none; border-radius: 20px; padding: 10px 20px; font-size: 13px; font-weight: 700; cursor: pointer; margin-bottom: 18px; display: inline-block; }}
-        .btn-growth:hover {{ background: #0369a1; }}
-
-        /* Open Position Card */
         .card-position {{ background: #0c1527; border: 1px solid #16233b; border-radius: 24px; padding: 26px 24px; position: relative; overflow: hidden; margin-bottom: 28px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }}
         .card-glow {{ position: absolute; top: -30px; right: -30px; width: 200px; height: 200px; background: radial-gradient(circle, rgba(56,189,248,0.18) 0%, rgba(0,0,0,0) 70%); border-radius: 50%; pointer-events: none; }}
         .card-title {{ font-size: 22px; font-weight: 800; color: #ffffff; margin-bottom: 16px; }}
         
-        .portfolio-label {{ font-size: 11px; font-weight: 700; letter-spacing: 0.8px; color: #64748b; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; font-style: italic; }}
+        .portfolio-label {{ font-size: 11px; font-weight: 700; letter-spacing: 0.8px; color: #64748b; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; font-style: italic; }}
+        .eye-toggle-btn {{ cursor: pointer; font-size: 14px; background: #0b1a2f; border: 1px solid #1e293b; padding: 2px 6px; border-radius: 6px; color: #38bdf8; transition: 0.2s; }}
+        .eye-toggle-btn:hover {{ background: #0284c7; color: white; }}
+
         .stats-row {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; border-bottom: 1px solid #16233b; padding-bottom: 20px; margin-bottom: 24px; }}
         .stat-col-title {{ font-size: 10px; color: #64748b; font-weight: 700; margin-bottom: 4px; }}
         .stat-col-val {{ font-size: 13px; font-weight: 700; color: #ffffff; }}
         .stat-col-val.blue {{ color: #38bdf8; }}
         .no-position {{ text-align: center; color: #64748b; font-size: 15px; font-weight: 500; padding: 14px 0 6px; }}
 
-        /* Realized Trade History */
         .history-title {{ text-align: center; font-size: 20px; font-weight: 800; color: #ffffff; margin-bottom: 16px; }}
-        .pill-btn-wide {{ background: #0c1527; border: 1px solid #16233b; border-radius: 12px; padding: 12px; text-align: center; color: #cbd5e1; font-size: 13px; font-weight: 600; margin-bottom: 10px; cursor: pointer; display: block; width: 100%; }}
-        .coin-filter-row {{ display: flex; gap: 8px; margin: 18px 0 14px; overflow-x: auto; }}
+        .coin-filter-row {{ display: flex; gap: 8px; margin: 16px 0 16px; overflow-x: auto; }}
         .coin-filter {{ background: #0c1527; border: 1px solid #16233b; border-radius: 10px; padding: 8px 16px; color: #94a3b8; font-size: 12px; font-weight: 700; cursor: pointer; border: none; }}
         .coin-filter.active {{ background: #0284c7; color: #ffffff; }}
         .trade-row {{ background: #0c1527; border: 1px solid #16233b; border-radius: 14px; padding: 14px 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }}
         .coin-badge {{ background: #0b1a2f; color: #38bdf8; border: 1px solid #133256; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 800; }}
 
-        /* Wallet Activity Cards */
         .wallet-card {{ background: #0c1527; border: 1px solid #16233b; border-radius: 16px; padding: 18px 20px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }}
         .status-badge {{ background: #064e3b; color: #34d399; border: 1px solid #059669; padding: 4px 12px; border-radius: 16px; font-size: 11px; font-weight: 700; display: inline-block; margin-top: 6px; }}
         .overview-summary {{ background: #0c1527; border: 1px solid #16233b; border-radius: 18px; padding: 18px; margin-bottom: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; text-align: center; }}
         .summary-label {{ font-size: 11px; color: #94a3b8; font-weight: 600; text-transform: uppercase; }}
         .summary-val {{ font-size: 18px; font-weight: 800; margin-top: 4px; }}
 
-        /* BOT Wallet Styles */
         .wallet-actions-bar {{ display: flex; gap: 8px; margin-bottom: 24px; overflow-x: auto; padding-bottom: 4px; }}
         .wallet-action-pill {{ background: #0c1527; border: 1px solid #16233b; border-radius: 20px; padding: 8px 16px; color: #94a3b8; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }}
         .wallet-action-pill.active {{ background: #38bdf8; color: #060b14; }}
@@ -277,7 +267,6 @@ def get_html():
         .step-circle {{ width: 22px; height: 22px; border-radius: 50%; background: #0284c7; color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; }}
         .payment-method-card {{ background: #0c1527; border: 1px solid #16233b; border-radius: 16px; padding: 20px; margin-bottom: 14px; text-align: left; }}
 
-        /* Conversion UI */
         .swap-box {{ background: #070d18; border: 1px solid #16233b; border-radius: 16px; padding: 18px; margin-bottom: 12px; }}
         .swap-label-row {{ display: flex; justify-content: space-between; font-size: 12px; color: #94a3b8; margin-bottom: 10px; font-weight: 600; }}
         .swap-input-row {{ display: flex; justify-content: space-between; align-items: center; gap: 12px; }}
@@ -285,11 +274,9 @@ def get_html():
         .max-pill {{ background: rgba(56,189,248,0.15); border: 1px solid #0284c7; color: #38bdf8; padding: 4px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; }}
         .curr-pill {{ background: #0c1527; border: 1px solid #1e293b; color: #ffffff; padding: 8px 14px; border-radius: 10px; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px; }}
         .swap-divider-btn {{ width: 40px; height: 40px; border-radius: 50%; background: #131b2e; border: 1px solid #1e293b; color: #38bdf8; display: flex; justify-content: center; align-items: center; font-size: 16px; margin: -6px auto; cursor: pointer; position: relative; z-index: 2; transition: 0.2s; }}
-        .swap-divider-btn:hover {{ transform: rotate(180deg); background: #0284c7; color: white; }}
         .calc-breakdown {{ padding: 16px 4px; border-top: 1px solid #16233b; margin-top: 14px; }}
         .breakdown-row {{ display: flex; justify-content: space-between; font-size: 12px; color: #94a3b8; margin-bottom: 8px; }}
 
-        /* Modal Styles */
         .modal {{ display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(6,11,20,0.92); justify-content: center; align-items: center; z-index: 100; padding: 16px; }}
         .modal-content {{ background: #0c1527; border: 1px solid #1e293b; border-radius: 20px; width: 100%; max-width: 420px; padding: 24px; text-align: center; }}
         .input-box {{ width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #1e293b; background: #060b14; color: white; margin-bottom: 10px; font-size: 14px; }}
@@ -335,7 +322,7 @@ def get_html():
             <div style="display: flex; align-items: center; gap: 10px;">
                 <div class="live-pill">
                     <span class="live-tag">LIVE</span>
-                    <span>{balance:.2f} USDT</span>
+                    <span id="headerBalText">{balance:.2f} USDT</span>
                     <span class="green-dot"></span>
                 </div>
                 <button class="avatar-btn" id="avatarBtn" onclick="openProfileModal()">M</button>
@@ -353,31 +340,33 @@ def get_html():
             <button class="nav-item" onclick="logoutUser()">Logout</button>
         </div>
 
-        <!-- TAB 1: Trade Logs View (Default) -->
+        <!-- TAB 1: Trade Logs View -->
         <div id="viewTradeLogs">
-            <button class="btn-growth" onclick="triggerScan()">View Balance Growth & Run Scan</button>
-
+            <!-- Open Position Card with Working Eye Button -->
             <div class="card-position">
                 <div class="card-glow"></div>
                 <div class="card-title">Open Position</div>
-                <div class="portfolio-label">PORTFOLIO OVERVIEW 👁</div>
+                <div class="portfolio-label">
+                    PORTFOLIO OVERVIEW 
+                    <span id="eyeBtn" class="eye-toggle-btn" onclick="toggleEyeVisibility()" title="Toggle hide/show balance">👁</span>
+                </div>
 
                 <div class="stats-row">
                     <div>
                         <div class="stat-col-title">PRINCIPAL ▾</div>
-                        <div class="stat-col-val">1000.00 <span style="font-size: 10px; color:#64748b;">USDT</span></div>
+                        <div class="stat-col-val" id="dispPrincipal">1000.00 <span style="font-size: 10px; color:#64748b;">USDT</span></div>
                     </div>
                     <div>
                         <div class="stat-col-title">E. PNL ▾</div>
-                        <div class="stat-col-val blue">{profit_sign}{profit:.2f}</div>
+                        <div class="stat-col-val blue" id="dispEpnl">{profit_sign}{profit:.2f}</div>
                     </div>
                     <div>
                         <div class="stat-col-title">PNL ▾</div>
-                        <div class="stat-col-val blue">{profit_sign}{profit:.2f} <span style="font-size: 10px;">USDT</span></div>
+                        <div class="stat-col-val blue" id="dispPnl">{profit_sign}{profit:.2f} <span style="font-size: 10px;">USDT</span></div>
                     </div>
                     <div>
                         <div class="stat-col-title">CURRENT</div>
-                        <div class="stat-col-val">{balance:.2f} <span style="font-size: 10px; color:#64748b;">USDT</span></div>
+                        <div class="stat-col-val" id="dispCurrent">{balance:.2f} <span style="font-size: 10px; color:#64748b;">USDT</span></div>
                     </div>
                 </div>
 
@@ -386,9 +375,8 @@ def get_html():
 
             <div>
                 <div class="history-title">Realized Trade History</div>
-                <button class="pill-btn-wide">Compare with BTC & ETH</button>
-                <button class="pill-btn-wide" onclick="alert('Downloading Trade PDF Report...')">Download Trade PDF</button>
 
+                <!-- Corrected Coin Filter Row -->
                 <div class="coin-filter-row">
                     <button class="coin-filter active" onclick="filterCoin('ALL', this)">ALL</button>
                     <button class="coin-filter" onclick="filterCoin('ETH-USDT', this)">ETH-USDT</button>
@@ -402,9 +390,8 @@ def get_html():
             </div>
         </div>
 
-        <!-- TAB 2: BOT Wallet View (INR Withdrawal Limits: Min 1k, Max 10k) -->
+        <!-- TAB 2: BOT Wallet View -->
         <div id="viewBotWallet" style="display: none;">
-            <!-- Wallet Overview Card -->
             <div class="card-position" style="padding: 22px 24px; margin-bottom: 20px;">
                 <div class="card-glow"></div>
                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
@@ -417,12 +404,11 @@ def get_html():
                     <div style="background: #0284c7; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px;">U</div>
                     <div>
                         <div style="font-size: 11px; color: #64748b; font-weight: 700;">USDT</div>
-                        <div style="font-size: 17px; font-weight: 800; color: #38bdf8;">{balance:.2f}</div>
+                        <div style="font-size: 17px; font-weight: 800; color: #38bdf8;" id="walletUsdtBalDisplay">{balance:.2f}</div>
                     </div>
                 </div>
             </div>
 
-            <!-- Action Pills Bar -->
             <div class="wallet-actions-bar">
                 <button id="pillDeposit" class="wallet-action-pill" onclick="switchWalletTab('deposit')">↙ DEPOSIT • INR ▾</button>
                 <button id="pillWithdraw" class="wallet-action-pill active" onclick="switchWalletTab('withdraw')">↗ WITHDRAW • INR ▾</button>
@@ -478,7 +464,7 @@ def get_html():
                 </div>
             </div>
 
-            <!-- Sub-tab 3: Conversion (INR <-> USDT) -->
+            <!-- Sub-tab 3: Conversion (Exact Creddx UI) -->
             <div id="walletSubConversion" style="display: none;">
                 <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 6px;">
                     <div style="background: #064e3b; border: 1px solid #059669; width: 36px; height: 36px; border-radius: 10px; display: flex; justify-content: center; align-items: center; font-size: 18px;">🤖</div>
@@ -544,9 +530,6 @@ def get_html():
                     </div>
 
                     <button class="btn-action" style="background: linear-gradient(90deg, #10b981, #059669); margin-top: 14px; padding: 14px; font-size: 16px;" onclick="executeConversion()">Convert</button>
-                    <p style="font-size: 11px; color: #64748b; text-align: center; margin-top: 10px;">
-                        Conversion happens instantly at current market rate. Final value may slightly vary.
-                    </p>
                 </div>
             </div>
 
@@ -617,6 +600,16 @@ def get_html():
         let currentUsdtBal = {balance};
         let currentInrBal = {inr_balance};
         let swapDirection = 'USDT_TO_INR';
+        let isBalanceHidden = false;
+
+        // Original unmasked values
+        const origValues = {{
+            principal: '1000.00 USDT',
+            epnl: '{profit_sign}{profit:.2f}',
+            pnl: '{profit_sign}{profit:.2f} USDT',
+            current: '{balance:.2f} USDT',
+            header: '{balance:.2f} USDT'
+        }};
 
         window.addEventListener('DOMContentLoaded', () => {{
             const saved = localStorage.getItem('cryptobot_user_email');
@@ -627,6 +620,26 @@ def get_html():
                 document.getElementById('avatarBtn').innerText = initial;
             }}
         }});
+
+        function toggleEyeVisibility() {{
+            isBalanceHidden = !isBalanceHidden;
+            const eyeBtn = document.getElementById('eyeBtn');
+            if (isBalanceHidden) {{
+                eyeBtn.innerText = '🙈';
+                document.getElementById('dispPrincipal').innerHTML = '**** <span style="font-size: 10px; color:#64748b;">USDT</span>';
+                document.getElementById('dispEpnl').innerText = '****';
+                document.getElementById('dispPnl').innerHTML = '**** <span style="font-size: 10px;">USDT</span>';
+                document.getElementById('dispCurrent').innerHTML = '**** <span style="font-size: 10px; color:#64748b;">USDT</span>';
+                document.getElementById('headerBalText').innerText = '**** USDT';
+            }} else {{
+                eyeBtn.innerText = '👁';
+                document.getElementById('dispPrincipal').innerHTML = origValues.principal.replace('USDT', '<span style="font-size: 10px; color:#64748b;">USDT</span>');
+                document.getElementById('dispEpnl').innerText = origValues.epnl;
+                document.getElementById('dispPnl').innerHTML = origValues.pnl.replace('USDT', '<span style="font-size: 10px;">USDT</span>');
+                document.getElementById('dispCurrent').innerHTML = origValues.current.replace('USDT', '<span style="font-size: 10px; color:#64748b;">USDT</span>');
+                document.getElementById('headerBalText').innerText = origValues.header;
+            }}
+        }}
 
         function showTab(tab) {{
             document.getElementById('viewTradeLogs').style.display = 'none';
@@ -676,6 +689,25 @@ def get_html():
             }}
         }}
 
+        function filterCoin(coin, btn) {{
+            document.querySelectorAll('.coin-filter').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            const rows = document.querySelectorAll('.trade-row');
+            let visibleCount = 0;
+            const target = coin.replace(/[^A-Za-z]/g, '').toUpperCase();
+
+            rows.forEach(r => {{
+                const rowCoin = (r.getAttribute('data-coin') || '').replace(/[^A-Za-z]/g, '').toUpperCase();
+                if (coin === 'ALL' || rowCoin.includes(target) || target.includes(rowCoin)) {{
+                    r.style.display = 'flex';
+                    visibleCount++;
+                }} else {{
+                    r.style.display = 'none';
+                }}
+            }});
+        }}
+
         async function submitWithdrawalInr() {{
             const amtInr = parseFloat(document.getElementById('withdrawAmtInr').value) || 0;
             const dest = document.getElementById('withdrawDest').value.trim();
@@ -689,7 +721,7 @@ def get_html():
                 return;
             }}
             if (!dest) {{
-                alert('❌ Kripya UPI ID ya Bank Account details daalein!');
+                alert('❌ Kripya Destination UPI ID ya Bank Details daalein!');
                 return;
             }}
 
@@ -818,26 +850,6 @@ def get_html():
         function closeProfileModal() {{ document.getElementById('profileModal').style.display = 'none'; }}
         function openPaymentModal() {{ document.getElementById('payModal').style.display = 'flex'; }}
         function closePaymentModal() {{ document.getElementById('payModal').style.display = 'none'; }}
-
-        function filterCoin(coin, btn) {{
-            document.querySelectorAll('.coin-filter').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            const rows = document.querySelectorAll('.trade-row');
-            rows.forEach(r => {{
-                if (coin === 'ALL' || r.getAttribute('data-coin').includes(coin.replace('-', ''))) {{
-                    r.style.display = 'flex';
-                }} else {{
-                    r.style.display = 'none';
-                }}
-            }});
-        }}
-
-        async function triggerScan() {{
-            const res = await fetch('/run-bot', {{ method: 'POST' }});
-            const data = await res.json();
-            alert(data.message);
-            window.location.reload();
-        }}
 
         async function submitPayment() {{
             const utr = document.getElementById('utrInput').value.trim();
