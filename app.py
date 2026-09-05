@@ -46,7 +46,7 @@ autopilot_state = {
 def load_db():
     default_expiry = (datetime.now() + timedelta(days=365)).strftime("%d %b %Y")
     real_initial_activity = [
-        {"date": "04 Sep 2026", "time": "09:00 pm", "type": "INR Deposit (Bank Transfer)", "category": "DEPOSIT", "amount_inr": 1000.0, "status": "Completed"}
+        {"id": "init_1", "email": "admin@cryptobot.com", "date": "04 Sep 2026", "time": "09:00 pm", "type": "INR Deposit (Bank Transfer)", "category": "DEPOSIT", "amount_inr": 1000.0, "status": "Completed"}
     ]
     data = {}
     if os.path.exists(DB_FILE):
@@ -68,6 +68,8 @@ def load_db():
         data["trades"] = []
     if "wallet_activity" not in data:
         data["wallet_activity"] = real_initial_activity
+    if "payments" not in data:
+        data["payments"] = []
     if "users" not in data:
         data["users"] = {}
 
@@ -223,6 +225,9 @@ def get_html():
 
         if cat == "DEPOSIT" or "Deposit" in w.get("type", ""):
             total_inr_deposit += abs(amt_inr)
+            status_text = w.get('status', 'Completed')
+            status_bg = "#064e3b" if status_text == "Completed" else ("#78350f" if "Pending" in status_text else "#7f1d1d")
+            status_color = "#34d399" if status_text == "Completed" else ("#fde047" if "Pending" in status_text else "#f87171")
             card_markup = f"""
             <div class="wallet-card">
                 <div>
@@ -232,7 +237,7 @@ def get_html():
                 </div>
                 <div style="text-align: right;">
                     <div style="font-size: 16px; font-weight: 800; color: #34d399;">+₹{abs(amt_inr):,.2f}</div>
-                    <span class="status-badge">{w.get('status', 'Completed')}</span>
+                    <span class="status-badge" style="background:{status_bg}; color:{status_color};">{status_text}</span>
                 </div>
             </div>
             """
@@ -364,6 +369,8 @@ def get_html():
         .nav-bar {{ background: #0c1527; border: 1px solid #16233b; border-radius: 28px; padding: 6px 10px; display: flex; justify-content: space-between; align-items: center; overflow-x: auto; margin-bottom: 24px; gap: 6px; }}
         .nav-item {{ color: #94a3b8; text-decoration: none; font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 20px; white-space: nowrap; cursor: pointer; border: none; background: transparent; }}
         .nav-item.active {{ background: #0284c7; color: #ffffff; font-weight: 700; }}
+        .nav-item.admin-tab {{ background: #78350f; color: #fde047; border: 1px solid #b45309; }}
+        .nav-item.admin-tab.active {{ background: #d97706; color: #000; font-weight: 800; }}
 
         .card-position {{ background: #0c1527; border: 1px solid #16233b; border-radius: 24px; padding: 26px 24px; position: relative; overflow: hidden; margin-bottom: 28px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }}
         .card-glow {{ position: absolute; top: -30px; right: -30px; width: 200px; height: 200px; background: radial-gradient(circle, rgba(56,189,248,0.18) 0%, rgba(0,0,0,0) 70%); border-radius: 50%; pointer-events: none; }}
@@ -410,7 +417,6 @@ def get_html():
         .summary-label {{ font-size: 11px; color: #94a3b8; font-weight: 600; text-transform: uppercase; }}
         .summary-val {{ font-size: 18px; font-weight: 800; margin-top: 4px; }}
 
-        /* 3 Options Bar */
         .wallet-actions-bar {{ display: flex; gap: 10px; margin-bottom: 24px; }}
         .wallet-action-pill {{ flex: 1; text-align: center; background: #0c1527; border: 1px solid #16233b; border-radius: 20px; padding: 10px 14px; color: #94a3b8; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; }}
         .wallet-action-pill.active {{ background: #38bdf8; color: #060b14; }}
@@ -446,6 +452,11 @@ def get_html():
         .swap-divider-btn:hover {{ background: #0284c7; color: white; transform: rotate(180deg); }}
         .calc-breakdown {{ padding: 16px 4px; border-top: 1px solid #16233b; margin-top: 14px; }}
         .breakdown-row {{ display: flex; justify-content: space-between; font-size: 12px; color: #94a3b8; margin-bottom: 8px; }}
+
+        /* Admin Requests Card */
+        .admin-req-card {{ background: #0c1527; border: 1px solid #1e293b; border-radius: 16px; padding: 18px 20px; margin-bottom: 14px; text-align: left; }}
+        .btn-approve {{ background: #10b981; color: white; border: none; border-radius: 8px; padding: 8px 16px; font-weight: 700; cursor: pointer; font-size: 12px; }}
+        .btn-reject {{ background: #ef4444; color: white; border: none; border-radius: 8px; padding: 8px 16px; font-weight: 700; cursor: pointer; font-size: 12px; margin-left: 8px; }}
 
         .modal {{ display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(6,11,20,0.92); justify-content: center; align-items: center; z-index: 100; padding: 16px; }}
         .modal-content {{ background: #0c1527; border: 1px solid #1e293b; border-radius: 20px; width: 100%; max-width: 420px; padding: 24px; text-align: center; }}
@@ -503,6 +514,8 @@ def get_html():
             <button id="navTradeLogs" class="nav-item active" onclick="showTab('tradeLogs')">Trade Logs</button>
             <button id="navBotWallet" class="nav-item" onclick="showTab('botWallet')">BOT Wallet</button>
             <button id="navOverview" class="nav-item" onclick="showTab('overview')">Overview</button>
+            <!-- Hidden for regular customer, shown ONLY for Admin -->
+            <button id="navAdminPanel" class="nav-item admin-tab" style="display: none;" onclick="showTab('adminPanel')">👑 Admin Panel</button>
             <button class="nav-item" onclick="logoutUser()">Logout</button>
         </div>
 
@@ -593,11 +606,11 @@ def get_html():
             <div class="wallet-actions-bar">
                 <button id="pillDeposit" class="wallet-action-pill active" onclick="switchWalletTab('deposit')">↙ DEPOSIT • INR ▾</button>
                 <button id="pillWithdraw" class="wallet-action-pill" onclick="switchWalletTab('withdraw')">↗ WITHDRAW • INR ▾</button>
-                <button id="pillConversion" class="wallet-action-pill" onclick="switchWalletTab('conversion')">⇄ CONVERSION</button>
+                <button id="pillConversion" class="wallet-action-pill active" onclick="switchWalletTab('conversion')">⇄ CONVERSION</button>
             </div>
 
-            <!-- Sub-tab 1: Deposit INR -->
-            <div id="walletSubDeposit">
+            <!-- Sub-tab 1: Deposit INR (Bank Transfer Flow) -->
+            <div id="walletSubDeposit" style="display: none;">
                 <div class="step-indicator">
                     <span class="step-circle" id="stepCircle1">1</span> <span id="stepLabel1" style="color: #ffffff;">PAYMENT DETAILS</span> ────── <span class="step-circle" id="stepCircle2" style="background:#1e293b; color:#94a3b8;">2</span> <span id="stepLabel2">SUBMIT PROOF</span>
                 </div>
@@ -840,6 +853,31 @@ def get_html():
                 {all_wallet_html}
             </div>
         </div>
+
+        <!-- TAB 5: 👑 Admin Approval Panel (Visible ONLY to Admin) -->
+        <div id="viewAdminPanel" style="display: none;">
+            <div style="margin-bottom: 20px; text-align: left;">
+                <h2 style="font-size: 24px; font-weight: 800; color: #fde047; margin-bottom: 6px;">👑 Master Admin Approval Panel</h2>
+                <p style="font-size: 13px; color: #94a3b8;">
+                    Review customer deposits, verify UTR numbers, credit balances, and activate plans.
+                </p>
+            </div>
+
+            <h3 style="color: #38bdf8; font-size: 18px; margin-bottom: 14px; text-align: left;">Pending Bank Deposits (Wallet Funding)</h3>
+            <div id="adminPendingDepositsList">
+                <div style="color:#64748b; padding: 16px; text-align: center;">Loading pending requests...</div>
+            </div>
+
+            <h3 style="color: #38bdf8; font-size: 18px; margin: 26px 0 14px; text-align: left;">Pending Subscription Plans</h3>
+            <div id="adminPendingPlansList">
+                <div style="color:#64748b; padding: 16px; text-align: center;">Loading pending plans...</div>
+            </div>
+
+            <h3 style="color: #38bdf8; font-size: 18px; margin: 26px 0 14px; text-align: left;">Registered Users</h3>
+            <div id="adminUsersList">
+                <div style="color:#64748b; padding: 16px; text-align: center;">Loading users...</div>
+            </div>
+        </div>
     </div>
 
     <!-- Profit Split Applied Modal -->
@@ -950,6 +988,7 @@ def get_html():
                     const isAdmin = (email.toLowerCase() === 'admin@cryptobot.com') || u.is_admin;
                     
                     if (isAdmin) {{
+                        document.getElementById('navAdminPanel').style.display = 'inline-block';
                         currentUsdtBal = {balance};
                         currentInrBal = {inr_balance};
                         origValues.principal = '1000.00 USDT';
@@ -960,7 +999,7 @@ def get_html():
                         document.getElementById('dispTotalDeposit').innerText = '+₹{total_inr_deposit:,.2f}';
                         document.getElementById('dispTotalWithdrawal').innerText = '-₹{total_inr_withdrawn:,.2f}';
                     }} else {{
-                        // Regular Customer starts with 0.00 USDT
+                        document.getElementById('navAdminPanel').style.display = 'none';
                         currentUsdtBal = u.balance || 0.0;
                         currentInrBal = u.inr_balance || 0.0;
                         origValues.principal = (u.principal || 0.0).toFixed(2) + ' USDT';
@@ -969,7 +1008,6 @@ def get_html():
                         origValues.current = currentUsdtBal.toFixed(2) + ' USDT';
                         origValues.header = currentUsdtBal.toFixed(2) + ' USDT';
                         
-                        // Clear demo trades for regular customer
                         const rows = document.querySelectorAll('.trade-card-split');
                         rows.forEach(r => r.style.display = 'none');
                         document.getElementById('emptyTradesState').style.display = 'block';
@@ -1093,11 +1131,13 @@ def get_html():
             document.getElementById('viewPlans').style.display = 'none';
             document.getElementById('viewBotWallet').style.display = 'none';
             document.getElementById('viewOverview').style.display = 'none';
+            document.getElementById('viewAdminPanel').style.display = 'none';
             
             document.getElementById('navTradeLogs').classList.remove('active');
             document.getElementById('navPlans').classList.remove('active');
             document.getElementById('navBotWallet').classList.remove('active');
             document.getElementById('navOverview').classList.remove('active');
+            document.getElementById('navAdminPanel').classList.remove('active');
 
             if (tab === 'plans') {{
                 document.getElementById('viewPlans').style.display = 'block';
@@ -1105,10 +1145,14 @@ def get_html():
             }} else if (tab === 'botWallet') {{
                 document.getElementById('viewBotWallet').style.display = 'block';
                 document.getElementById('navBotWallet').classList.add('active');
-                switchWalletTab('conversion');
+                switchWalletTab('deposit');
             }} else if (tab === 'overview') {{
                 document.getElementById('viewOverview').style.display = 'block';
                 document.getElementById('navOverview').classList.add('active');
+            }} else if (tab === 'adminPanel') {{
+                document.getElementById('viewAdminPanel').style.display = 'block';
+                document.getElementById('navAdminPanel').classList.add('active');
+                loadAdminPanelData();
             }} else {{
                 document.getElementById('viewTradeLogs').style.display = 'block';
                 document.getElementById('navTradeLogs').classList.add('active');
@@ -1127,12 +1171,12 @@ def get_html():
             if (subTab === 'withdraw') {{
                 document.getElementById('walletSubWithdraw').style.display = 'block';
                 document.getElementById('pillWithdraw').classList.add('active');
-            }} else if (subTab === 'deposit') {{
-                document.getElementById('walletSubDeposit').style.display = 'block';
-                document.getElementById('pillDeposit').classList.add('active');
-            }} else {{
+            }} else if (subTab === 'conversion') {{
                 document.getElementById('walletSubConversion').style.display = 'block';
                 document.getElementById('pillConversion').classList.add('active');
+            }} else {{
+                document.getElementById('walletSubDeposit').style.display = 'block';
+                document.getElementById('pillDeposit').classList.add('active');
             }}
         }}
 
@@ -1298,6 +1342,137 @@ def get_html():
             window.location.reload();
         }}
 
+        /* Admin Panel Loader & Actions */
+        async function loadAdminPanelData() {{
+            try {{
+                const res = await fetch('/api/admin/data');
+                const d = await res.json();
+                
+                // Render Pending Deposits
+                let depHtml = '';
+                if (d.pending_deposits && d.pending_deposits.length > 0) {{
+                    d.pending_deposits.forEach((req, idx) => {{
+                        depHtml += `
+                        <div class="admin-req-card">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                                <div>
+                                    <strong style="color: #38bdf8; font-size: 15px;">${{req.email || 'User'}}</strong>
+                                    <div style="color: #94a3b8; font-size: 12px; margin-top: 2px;">Sender: ${{req.sender_name || 'N/A'}} • ${{req.date}} ${{req.time}}</div>
+                                    <div style="color: #fde047; font-family: monospace; font-size: 13px; margin-top: 4px;">UTR: ${{req.utr}}</div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div style="color: #34d399; font-size: 18px; font-weight: 800;">₹${{Number(req.amount_inr).toLocaleString()}}</div>
+                                    <div style="font-size: 11px; color: #64748b;">≈ $${{(req.amount_inr / CURRENT_RATE).toFixed(2)}} USDT</div>
+                                </div>
+                            </div>
+                            <div style="margin-top: 10px;">
+                                <button class="btn-approve" onclick="approveDeposit('${{req.id}}', '${{req.email}}', ${{req.amount_inr}})">✅ Approve & Credit USDT</button>
+                                <button class="btn-reject" onclick="rejectDeposit('${{req.id}}')">❌ Reject</button>
+                            </div>
+                        </div>`;
+                    }});
+                }} else {{
+                    depHtml = '<div style="color: #64748b; padding: 18px; text-align: center;">No pending deposit requests.</div>';
+                }}
+                document.getElementById('adminPendingDepositsList').innerHTML = depHtml;
+
+                // Render Pending Plans
+                let planHtml = '';
+                if (d.pending_plans && d.pending_plans.length > 0) {{
+                    d.pending_plans.forEach(p => {{
+                        planHtml += `
+                        <div class="admin-req-card">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                                <div>
+                                    <strong style="color: #38bdf8; font-size: 15px;">${{p.email}}</strong>
+                                    <div style="color: #ffffff; font-weight: 700; font-size: 13px; margin-top: 2px;">${{p.plan}} (${{p.days}} Days)</div>
+                                    <div style="color: #fde047; font-family: monospace; font-size: 13px; margin-top: 4px;">UTR: ${{p.utr}}</div>
+                                </div>
+                                <div style="color: #34d399; font-size: 18px; font-weight: 800;">₹${{Number(p.amount).toLocaleString()}}</div>
+                            </div>
+                            <div style="margin-top: 10px;">
+                                <button class="btn-approve" onclick="approvePlan('${{p.id}}', '${{p.email}}', '${{p.plan}}', ${{p.days}})">✅ Activate Plan</button>
+                                <button class="btn-reject" onclick="rejectPlan('${{p.id}}')">❌ Reject</button>
+                            </div>
+                        </div>`;
+                    }});
+                }} else {{
+                    planHtml = '<div style="color: #64748b; padding: 18px; text-align: center;">No pending plan subscriptions.</div>';
+                }}
+                document.getElementById('adminPendingPlansList').innerHTML = planHtml;
+
+                // Render Users
+                let uHtml = '';
+                if (d.users) {{
+                    for (const [em, u] of Object.entries(d.users)) {{
+                        uHtml += `
+                        <div class="wallet-card">
+                            <div>
+                                <strong style="color: #f8fafc; font-size: 14px;">${{em}}</strong>
+                                <div style="color: #94a3b8; font-size: 11px; margin-top: 2px;">Plan: ${{u.plan || 'NONE'}} • Left: ${{u.days_left || 0}} Days</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="color: #38bdf8; font-weight: 800;">${{Number(u.balance || 0).toFixed(2)}} USDT</div>
+                                <span class="status-badge" style="background:${{u.status === 'ACTIVE' ? '#064e3b':'#1e293b'}}">${{u.status || 'INACTIVE'}}</span>
+                            </div>
+                        </div>`;
+                    }}
+                }}
+                document.getElementById('adminUsersList').innerHTML = uHtml;
+
+            }} catch(e) {{
+                console.error(e);
+            }}
+        }}
+
+        async function approveDeposit(reqId, email, amtInr) {{
+            if (!confirm('Approve ₹' + amtInr + ' for ' + email + '?')) return;
+            const res = await fetch('/api/admin/approve-deposit', {{
+                method: 'POST',
+                headers: {{ 'Content-Type': 'application/json' }},
+                body: JSON.stringify({{ id: reqId, email: email, amount_inr: amtInr }})
+            }});
+            const data = await res.json();
+            alert(data.message);
+            loadAdminPanelData();
+        }}
+
+        async function rejectDeposit(reqId) {{
+            if (!confirm('Reject this deposit request?')) return;
+            const res = await fetch('/api/admin/reject-deposit', {{
+                method: 'POST',
+                headers: {{ 'Content-Type': 'application/json' }},
+                body: JSON.stringify({{ id: reqId }})
+            }});
+            const data = await res.json();
+            alert(data.message);
+            loadAdminPanelData();
+        }}
+
+        async function approvePlan(reqId, email, planName, days) {{
+            if (!confirm('Activate ' + planName + ' for ' + email + '?')) return;
+            const res = await fetch('/api/admin/approve-plan', {{
+                method: 'POST',
+                headers: {{ 'Content-Type': 'application/json' }},
+                body: JSON.stringify({{ id: reqId, email: email, plan: planName, days: days }})
+            }});
+            const data = await res.json();
+            alert(data.message);
+            loadAdminPanelData();
+        }}
+
+        async function rejectPlan(reqId) {{
+            if (!confirm('Reject this plan request?')) return;
+            const res = await fetch('/api/admin/reject-plan', {{
+                method: 'POST',
+                headers: {{ 'Content-Type': 'application/json' }},
+                body: JSON.stringify({{ id: reqId }})
+            }});
+            const data = await res.json();
+            alert(data.message);
+            loadAdminPanelData();
+        }}
+
         function switchAuthTab(tab) {{
             if (tab === 'login') {{
                 document.getElementById('loginForm').style.display = 'block';
@@ -1361,6 +1536,21 @@ def get_html():
 
 class DashboardHandler(BaseHTTPRequestHandler):
     def do_GET(self):
+        if self.path == '/api/admin/data':
+            db = load_db()
+            pending_deposits = [w for w in db.get("wallet_activity", []) if "Pending" in w.get("status", "")]
+            pending_plans = [p for p in db.get("payments", []) if p.get("status", "") == "Pending"]
+            res = {
+                "pending_deposits": pending_deposits,
+                "pending_plans": pending_plans,
+                "users": db.get("users", {})
+            }
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode('utf-8'))
+            return
+
         try:
             html = get_html()
             self.send_response(200)
@@ -1387,7 +1577,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             password = payload.get('password', '').strip()
             db = load_db()
 
-            # Direct Master Admin Access - Can NEVER fail
+            # Guaranteed Master Admin Bypass
             if email == 'admin@cryptobot.com' and password == 'admin123':
                 res = {"status": "success", "message": "Login successful!", "plan_status": "ACTIVE"}
             else:
@@ -1466,7 +1656,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
             utr = payload.get('utr', 'N/A')
             now = datetime.now()
 
+            req_id = f"dep_{int(time.time())}"
             db.setdefault("wallet_activity", []).insert(0, {
+                "id": req_id,
+                "email": email,
+                "sender_name": sender_name,
                 "date": now.strftime("%d %b %Y"),
                 "time": now.strftime("%I:%M %p").lower(),
                 "type": f"INR Deposit ({sender_name})",
@@ -1482,6 +1676,40 @@ class DashboardHandler(BaseHTTPRequestHandler):
             msg = f"✅ Payment Proof Submitted!\n\nAmount: ₹{amount_inr:,.2f}\nUTR: {utr}\nFinance team verify karke aapke BOT Wallet me funds add kar degi."
             self.wfile.write(json.dumps({"status": "success", "message": msg}).encode('utf-8'))
 
+        elif self.path == '/api/admin/approve-deposit':
+            req_id = payload.get('id')
+            email = payload.get('email', '')
+            amount_inr = float(payload.get('amount_inr', 0.0))
+            db = load_db()
+
+            usdt_to_credit = round(amount_inr / USDT_INR_RATE, 2)
+            if email in db.get("users", {}):
+                db["users"][email]["balance"] = db["users"][email].get("balance", 0.0) + usdt_to_credit
+
+            for w in db.get("wallet_activity", []):
+                if w.get("id") == req_id:
+                    w["status"] = "Completed"
+                    break
+
+            save_db(db)
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "success", "message": f"✅ Approved! {usdt_to_credit} USDT credited to {email}."}).encode('utf-8'))
+
+        elif self.path == '/api/admin/reject-deposit':
+            req_id = payload.get('id')
+            db = load_db()
+            for w in db.get("wallet_activity", []):
+                if w.get("id") == req_id:
+                    w["status"] = "Rejected"
+                    break
+            save_db(db)
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "success", "message": "❌ Deposit request rejected."}).encode('utf-8'))
+
         elif self.path == '/api/verify-plan-utr':
             db = load_db()
             email = payload.get('email', 'User')
@@ -1491,20 +1719,60 @@ class DashboardHandler(BaseHTTPRequestHandler):
             price = payload.get('price', 999)
             days = payload.get('days', 30)
 
+            plan_req_id = f"plan_{int(time.time())}"
+            db.setdefault("payments", []).append({
+                "id": plan_req_id,
+                "email": email,
+                "plan_id": plan_id,
+                "plan": plan_name,
+                "amount": price,
+                "days": days,
+                "utr": utr,
+                "status": "Pending",
+                "time": datetime.now().strftime("%Y-%m-%d %H:%M")
+            })
+            save_db(db)
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            msg = f"🎉 Plan Subscription Submitted!\n\n{plan_name} (₹{price:,})\nUTR: {utr}\nAdmin approval ke baad turant activate ho jayega."
+            self.wfile.write(json.dumps({"status": "success", "message": msg}).encode('utf-8'))
+
+        elif self.path == '/api/admin/approve-plan':
+            req_id = payload.get('id')
+            email = payload.get('email', '')
+            days = int(payload.get('days', 30))
+            db = load_db()
+
             expiry = (datetime.now() + timedelta(days=days)).strftime("%d %b %Y")
-            
             if email in db.get("users", {}):
                 db["users"][email]["status"] = "ACTIVE"
-                db["users"][email]["plan"] = plan_id
                 db["users"][email]["days_left"] = days
                 db["users"][email]["expires_on"] = expiry
+
+            for p in db.get("payments", []):
+                if p.get("id") == req_id:
+                    p["status"] = "Completed"
+                    break
 
             save_db(db)
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
-            msg = f"🎉 Payment Verified!\n\n{plan_name} (₹{price:,}) activate ho gaya hai!\nValidity: {days} Days (Till {expiry})."
-            self.wfile.write(json.dumps({"status": "success", "message": msg}).encode('utf-8'))
+            self.wfile.write(json.dumps({"status": "success", "message": f"✅ Plan activated for {email} ({days} days)!"}).encode('utf-8'))
+
+        elif self.path == '/api/admin/reject-plan':
+            req_id = payload.get('id')
+            db = load_db()
+            for p in db.get("payments", []):
+                if p.get("id") == req_id:
+                    p["status"] = "Rejected"
+                    break
+            save_db(db)
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "success", "message": "❌ Plan request rejected."}).encode('utf-8'))
 
         elif self.path == '/api/withdraw-inr':
             amount_inr = float(payload.get('amount_inr', 0.0))
