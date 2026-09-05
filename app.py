@@ -23,7 +23,7 @@ PLAN_PRICE_INR = 999
 USDT_INR_RATE = 91.50
 
 MIN_WITHDRAW_INR = 1000.0
-MAX_WITHDRAW_INR = 50000.0
+MAX_WITHDRAW_INR = 10000.0
 
 ADMIN_COMMISSION_PCT = 0.15
 USER_SHARE_PCT = 0.85
@@ -32,9 +32,9 @@ upi_intent_url = f"upi://pay?pa={MY_UPI_ID}&pn={urllib.parse.quote(PAYEE_NAME)}&
 qr_image_url = f"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={urllib.parse.quote(upi_intent_url)}"
 
 PLANS = {
-    "PREMIUM": {"name": "PREMIUM PACKAGE", "price": 7999, "days": 365, "badge": "BEST VALUE (1 YEAR)"},
+    "PREMIUM": {"name": "PREMIUM PACKAGE", "price": 8000, "days": 365, "badge": "BEST VALUE (1 YEAR)"},
     "STANDARD": {"name": "STANDARD PACKAGE", "price": 999, "days": 30, "badge": "MOST POPULAR"},
-    "BASE": {"name": "BASE PACKAGE", "price": 399, "days": 10, "badge": "STARTER TRIAL"}
+    "BASE": {"name": "BASE PACKAGE", "price": 400, "days": 10, "badge": "STARTER TRIAL"}
 }
 
 autopilot_state = {
@@ -44,58 +44,52 @@ autopilot_state = {
 }
 
 def load_db():
-    default_expiry = (datetime.now() + timedelta(days=30)).strftime("%d %b %Y")
+    default_expiry = (datetime.now() + timedelta(days=365)).strftime("%d %b %Y")
     real_initial_activity = [
         {"date": "04 Sep 2026", "time": "09:00 pm", "type": "INR Deposit (Bank Transfer)", "category": "DEPOSIT", "amount_inr": 1000.0, "status": "Completed"}
     ]
+    data = {}
     if os.path.exists(DB_FILE):
-        with open(DB_FILE, 'r') as f:
-            data = json.load(f)
-            if "inr_balance" not in data:
-                data["inr_balance"] = 0.0
-            if "wallet_activity" in data:
-                clean_list = []
-                for w in data["wallet_activity"]:
-                    if "Investment" in w.get("type", "") or w.get("amount", 0) == 1000.0:
-                        clean_list.append({
-                            "date": w.get("date", "04 Sep 2026"),
-                            "time": w.get("time", "09:00 pm"),
-                            "type": "INR Deposit (Bank Transfer)",
-                            "category": "DEPOSIT",
-                            "amount_inr": 1000.0,
-                            "status": "Completed"
-                        })
-                    elif abs(w.get("amount", 0)) not in [2600.0, 600.0, 200.0]:
-                        clean_list.append(w)
-                data["wallet_activity"] = clean_list if clean_list else real_initial_activity
-            else:
-                data["wallet_activity"] = real_initial_activity
-            return data
-    return {
+        try:
+            with open(DB_FILE, 'r') as f:
+                data = json.load(f)
+        except Exception:
+            data = {}
+
+    if "balance" not in data:
+        data["balance"] = 1000.0
+    if "inr_balance" not in data:
+        data["inr_balance"] = 0.0
+    if "daily_trades_taken" not in data:
+        data["daily_trades_taken"] = 0
+    if "last_date" not in data:
+        data["last_date"] = str(datetime.now().date())
+    if "trades" not in data:
+        data["trades"] = []
+    if "wallet_activity" not in data:
+        data["wallet_activity"] = real_initial_activity
+    if "users" not in data:
+        data["users"] = {}
+
+    # Permanently guarantee admin exists with admin123
+    data["users"]["admin@cryptobot.com"] = {
+        "password": "admin123",
+        "status": "ACTIVE",
+        "plan": "PREMIUM",
+        "days_left": 365,
+        "expires_on": default_expiry,
         "balance": 1000.0,
         "inr_balance": 0.0,
-        "daily_trades_taken": 0,
-        "last_date": str(datetime.now().date()),
-        "users": {
-            "admin@cryptobot.com": {
-                "password": "admin123",
-                "status": "ACTIVE",
-                "plan": "STANDARD",
-                "expires_on": default_expiry,
-                "days_left": 30,
-                "profile": {
-                    "name": "Modassir",
-                    "phone": "+91 8406012453",
-                    "country": "India 🇮🇳",
-                    "risk": "Moderate (1.5%)",
-                    "avatar": ""
-                }
-            }
-        },
-        "trades": [],
-        "wallet_activity": real_initial_activity,
-        "payments": []
+        "is_admin": True,
+        "profile": {
+            "name": "Modassir",
+            "phone": "+91 8406012453",
+            "country": "India 🇮🇳",
+            "risk": "Moderate (1.5%)"
+        }
     }
+
+    return data
 
 def save_db(data):
     with open(DB_FILE, 'w') as f:
@@ -177,8 +171,6 @@ def get_html():
     data = load_db()
     balance = data.get("balance", 1000.0)
     inr_balance = data.get("inr_balance", 0.0)
-    profit = balance - 1000.0
-    profit_sign = "+" if profit >= 0 else ""
 
     trades_html = ""
     for t in reversed(data.get("trades", [])):
@@ -282,7 +274,6 @@ def get_html():
             conversions_html += card_markup
             all_wallet_html += card_markup
 
-    # Empty State Fallbacks
     if not deposits_html:
         deposits_html = '<div class="empty-state-box"><div class="empty-icon">📥</div><div class="empty-text">No Deposit History found</div></div>'
 
@@ -428,7 +419,6 @@ def get_html():
         .step-indicator {{ display: flex; align-items: center; gap: 10px; margin-bottom: 18px; font-size: 12px; font-weight: 700; color: #64748b; }}
         .step-circle {{ width: 22px; height: 22px; border-radius: 50%; background: #0284c7; color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; }}
         
-        /* Bank Details */
         .bank-card {{ background: #0c1527; border: 1px solid #16233b; border-radius: 20px; padding: 24px; margin-bottom: 20px; text-align: left; }}
         .bank-header {{ display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }}
         .bank-icon-box {{ background: #0b1a2f; border: 1px solid #1e293b; width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; }}
@@ -445,7 +435,6 @@ def get_html():
         .proof-upload-box {{ border: 2px dashed #1e293b; border-radius: 16px; padding: 28px 16px; text-align: center; cursor: pointer; margin: 14px 0 20px; background: #070d18; transition: 0.2s; }}
         .proof-upload-box:hover {{ border-color: #38bdf8; }}
 
-        /* Restored Full Modern Swap & Conversion Card Styles */
         .swap-card {{ background: #0c1527; border: 1px solid #16233b; border-radius: 24px; padding: 24px; margin-bottom: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }}
         .swap-box {{ background: #070d18; border: 1px solid #16233b; border-radius: 16px; padding: 18px; margin-bottom: 12px; }}
         .swap-label-row {{ display: flex; justify-content: space-between; font-size: 12px; color: #94a3b8; margin-bottom: 10px; font-weight: 600; }}
@@ -480,8 +469,8 @@ def get_html():
             </div>
 
             <div id="loginForm">
-                <input id="loginEmail" type="email" class="input-box" placeholder="Gmail Address">
-                <input id="loginPassword" type="password" class="input-box" placeholder="Password">
+                <input id="loginEmail" type="email" class="input-box" placeholder="Gmail Address" value="admin@cryptobot.com">
+                <input id="loginPassword" type="password" class="input-box" placeholder="Password" value="admin123">
                 <button class="btn-action" onclick="handleLogin()">Login to Terminal</button>
                 <p style="font-size: 11px; color: #64748b; margin-top: 12px;">Admin: admin@cryptobot.com / admin123</p>
             </div>
@@ -500,7 +489,7 @@ def get_html():
             <div style="display: flex; align-items: center; gap: 10px;">
                 <div class="live-pill">
                     <span class="live-tag">LIVE</span>
-                    <span id="headerBalText">{balance:.2f} USDT</span>
+                    <span id="headerBalText">0.00 USDT</span>
                     <span class="green-dot"></span>
                 </div>
                 <button class="avatar-btn" id="avatarBtn" onclick="openProfileModal()">M</button>
@@ -530,19 +519,19 @@ def get_html():
                 <div class="stats-row">
                     <div>
                         <div class="stat-col-title">PRINCIPAL ▾</div>
-                        <div class="stat-col-val" id="dispPrincipal">1000.00 <span style="font-size: 10px; color:#64748b;">USDT</span></div>
+                        <div class="stat-col-val" id="dispPrincipal">0.00 <span style="font-size: 10px; color:#64748b;">USDT</span></div>
                     </div>
                     <div>
                         <div class="stat-col-title">E. PNL ▾</div>
-                        <div class="stat-col-val blue" id="dispEpnl">{profit_sign}{profit:.2f}</div>
+                        <div class="stat-col-val blue" id="dispEpnl">+0.00</div>
                     </div>
                     <div>
                         <div class="stat-col-title">PNL ▾</div>
-                        <div class="stat-col-val blue" id="dispPnl">{profit_sign}{profit:.2f} <span style="font-size: 10px;">USDT</span></div>
+                        <div class="stat-col-val blue" id="dispPnl">+0.00 <span style="font-size: 10px;">USDT</span></div>
                     </div>
                     <div>
                         <div class="stat-col-title">CURRENT</div>
-                        <div class="stat-col-val" id="dispCurrent">{balance:.2f} <span style="font-size: 10px; color:#64748b;">USDT</span></div>
+                        <div class="stat-col-val" id="dispCurrent">0.00 <span style="font-size: 10px; color:#64748b;">USDT</span></div>
                     </div>
                 </div>
 
@@ -582,7 +571,7 @@ def get_html():
             {plans_html}
         </div>
 
-        <!-- TAB 3: BOT Wallet View (Strictly 3 Options: DEPOSIT, WITHDRAW, CONVERSION) -->
+        <!-- TAB 3: BOT Wallet View -->
         <div id="viewBotWallet" style="display: none;">
             <div class="card-position" style="padding: 22px 24px; margin-bottom: 20px;">
                 <div class="card-glow"></div>
@@ -596,19 +585,19 @@ def get_html():
                     <div style="background: #0284c7; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px;">U</div>
                     <div>
                         <div style="font-size: 11px; color: #64748b; font-weight: 700;">USDT</div>
-                        <div style="font-size: 17px; font-weight: 800; color: #38bdf8;" id="walletUsdtBalDisplay">{balance:.2f}</div>
+                        <div style="font-size: 17px; font-weight: 800; color: #38bdf8;" id="walletUsdtBalDisplay">0.00</div>
                     </div>
                 </div>
             </div>
 
             <div class="wallet-actions-bar">
-                <button id="pillDeposit" class="wallet-action-pill" onclick="switchWalletTab('deposit')">↙ DEPOSIT • INR ▾</button>
+                <button id="pillDeposit" class="wallet-action-pill active" onclick="switchWalletTab('deposit')">↙ DEPOSIT • INR ▾</button>
                 <button id="pillWithdraw" class="wallet-action-pill" onclick="switchWalletTab('withdraw')">↗ WITHDRAW • INR ▾</button>
-                <button id="pillConversion" class="wallet-action-pill active" onclick="switchWalletTab('conversion')">⇄ CONVERSION</button>
+                <button id="pillConversion" class="wallet-action-pill" onclick="switchWalletTab('conversion')">⇄ CONVERSION</button>
             </div>
 
-            <!-- Sub-tab 1: Deposit INR (Bank Transfer Flow) -->
-            <div id="walletSubDeposit" style="display: none;">
+            <!-- Sub-tab 1: Deposit INR -->
+            <div id="walletSubDeposit">
                 <div class="step-indicator">
                     <span class="step-circle" id="stepCircle1">1</span> <span id="stepLabel1" style="color: #ffffff;">PAYMENT DETAILS</span> ────── <span class="step-circle" id="stepCircle2" style="background:#1e293b; color:#94a3b8;">2</span> <span id="stepLabel2">SUBMIT PROOF</span>
                 </div>
@@ -723,7 +712,7 @@ def get_html():
                 </div>
             </div>
 
-            <!-- Sub-tab 2: Withdraw INR (Form + Pure INR Withdrawal History with Fallback) -->
+            <!-- Sub-tab 2: Withdraw INR -->
             <div id="walletSubWithdraw" style="display: none;">
                 <h2 style="font-size: 22px; font-weight: 800; color: #ffffff; margin-bottom: 6px;">Withdraw Funds (INR)</h2>
                 <p style="font-size: 12px; color: #94a3b8; margin-bottom: 16px;">Request an instant withdrawal in Indian Rupees directly to your verified Bank Account or UPI.</p>
@@ -750,7 +739,7 @@ def get_html():
                 </div>
             </div>
 
-            <!-- Sub-tab 3: Conversion (Exact Modern Creddx Style + Conversion History with Fallback) -->
+            <!-- Sub-tab 3: Conversion -->
             <div id="walletSubConversion">
                 <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 6px;">
                     <div style="background: #064e3b; border: 1px solid #059669; width: 36px; height: 36px; border-radius: 10px; display: flex; justify-content: center; align-items: center; font-size: 18px;">🤖</div>
@@ -768,7 +757,7 @@ def get_html():
                     <div class="swap-box">
                         <div class="swap-label-row">
                             <span>From</span>
-                            <span>Available: <span id="fromAvailableDisplay">{balance:.4f} USDT</span></span>
+                            <span>Available: <span id="fromAvailableDisplay">0.0000 USDT</span></span>
                         </div>
                         <div class="swap-input-row">
                             <input id="fromAmountInput" type="number" class="swap-input" placeholder="0.00" value="0.00" oninput="handleSwapCalculate()">
@@ -784,7 +773,7 @@ def get_html():
                     <div class="swap-box">
                         <div class="swap-label-row">
                             <span>To</span>
-                            <span>Available: <span id="toAvailableDisplay">₹ {inr_balance:.4f} INR</span></span>
+                            <span>Available: <span id="toAvailableDisplay">₹ 0.0000 INR</span></span>
                         </div>
                         <div class="swap-input-row">
                             <input id="toAmountInput" type="text" class="swap-input" placeholder="0" value="0" readonly>
@@ -839,11 +828,11 @@ def get_html():
             <div class="overview-summary">
                 <div>
                     <div class="summary-label">Total INR Deposit</div>
-                    <div class="summary-val" style="color: #34d399;">+₹{total_inr_deposit:,.2f}</div>
+                    <div class="summary-val" id="dispTotalDeposit" style="color: #34d399;">+₹0.00</div>
                 </div>
                 <div>
                     <div class="summary-label">Total INR Withdrawal</div>
-                    <div class="summary-val" style="color: #f87171;">-₹{total_inr_withdrawn:,.2f}</div>
+                    <div class="summary-val" id="dispTotalWithdrawal" style="color: #f87171;">-₹0.00</div>
                 </div>
             </div>
 
@@ -918,8 +907,9 @@ def get_html():
         const MIN_WITHDRAW = {MIN_WITHDRAW_INR};
         const MAX_WITHDRAW = {MAX_WITHDRAW_INR};
         const UPI_ID = "{MY_UPI_ID}";
-        let currentUsdtBal = {balance};
-        let currentInrBal = {inr_balance};
+        
+        let currentUsdtBal = 0.0;
+        let currentInrBal = 0.0;
         let swapDirection = 'USDT_TO_INR';
         let isBalanceHidden = false;
 
@@ -928,12 +918,12 @@ def get_html():
         let selectedPlanDays = 30;
         let selectedPlanName = 'STANDARD PACKAGE';
 
-        const origValues = {{
-            principal: '1000.00 USDT',
-            epnl: '{profit_sign}{profit:.2f}',
-            pnl: '{profit_sign}{profit:.2f} USDT',
-            current: '{balance:.2f} USDT',
-            header: '{balance:.2f} USDT'
+        let origValues = {{
+            principal: '0.00 USDT',
+            epnl: '+0.00',
+            pnl: '+0.00 USDT',
+            current: '0.00 USDT',
+            header: '0.00 USDT'
         }};
 
         window.addEventListener('DOMContentLoaded', () => {{
@@ -943,9 +933,79 @@ def get_html():
                 document.getElementById('mainDashboard').style.display = 'block';
                 const initial = saved.charAt(0).toUpperCase();
                 document.getElementById('avatarBtn').innerText = initial;
-                checkUserPlanStatus(saved);
+                loadUserPersonalData(saved);
             }}
         }});
+
+        async function loadUserPersonalData(email) {{
+            try {{
+                const res = await fetch('/api/user-status', {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json' }},
+                    body: JSON.stringify({{ email: email }})
+                }});
+                const data = await res.json();
+                if (data.status === 'success' && data.user) {{
+                    const u = data.user;
+                    const isAdmin = (email.toLowerCase() === 'admin@cryptobot.com') || u.is_admin;
+                    
+                    if (isAdmin) {{
+                        currentUsdtBal = {balance};
+                        currentInrBal = {inr_balance};
+                        origValues.principal = '1000.00 USDT';
+                        origValues.epnl = '+{balance - 1000.0:.2f}';
+                        origValues.pnl = '+{balance - 1000.0:.2f} USDT';
+                        origValues.current = '{balance:.2f} USDT';
+                        origValues.header = '{balance:.2f} USDT';
+                        document.getElementById('dispTotalDeposit').innerText = '+₹{total_inr_deposit:,.2f}';
+                        document.getElementById('dispTotalWithdrawal').innerText = '-₹{total_inr_withdrawn:,.2f}';
+                    }} else {{
+                        // Regular Customer starts with 0.00 USDT
+                        currentUsdtBal = u.balance || 0.0;
+                        currentInrBal = u.inr_balance || 0.0;
+                        origValues.principal = (u.principal || 0.0).toFixed(2) + ' USDT';
+                        origValues.epnl = '+0.00';
+                        origValues.pnl = '+0.00 USDT';
+                        origValues.current = currentUsdtBal.toFixed(2) + ' USDT';
+                        origValues.header = currentUsdtBal.toFixed(2) + ' USDT';
+                        
+                        // Clear demo trades for regular customer
+                        const rows = document.querySelectorAll('.trade-card-split');
+                        rows.forEach(r => r.style.display = 'none');
+                        document.getElementById('emptyTradesState').style.display = 'block';
+
+                        document.getElementById('personalDepositList').innerHTML = '<div class="empty-state-box"><div class="empty-icon">📥</div><div class="empty-text">No Deposit History found</div></div>';
+                        document.getElementById('personalWithdrawList').innerHTML = '<div class="empty-state-box"><div class="empty-icon">📤</div><div class="empty-text">No Withdrawal History found</div></div>';
+                        document.getElementById('personalConversionList').innerHTML = '<div class="empty-state-box"><div class="empty-icon">🔄</div><div class="empty-text">No Conversion History found</div></div>';
+                        document.getElementById('overviewListContainer').innerHTML = '<div class="empty-state-box"><div class="empty-icon">💼</div><div class="empty-text">No Wallet Activity found</div></div>';
+                        document.getElementById('dispTotalDeposit').innerText = '+₹0.00';
+                        document.getElementById('dispTotalWithdrawal').innerText = '-₹0.00';
+                    }}
+
+                    document.getElementById('dispPrincipal').innerHTML = origValues.principal.replace('USDT', '<span style="font-size: 10px; color:#64748b;">USDT</span>');
+                    document.getElementById('dispEpnl').innerText = origValues.epnl;
+                    document.getElementById('dispPnl').innerHTML = origValues.pnl.replace('USDT', '<span style="font-size: 10px;">USDT</span>');
+                    document.getElementById('dispCurrent').innerHTML = origValues.current.replace('USDT', '<span style="font-size: 10px; color:#64748b;">USDT</span>');
+                    document.getElementById('headerBalText').innerText = origValues.header;
+                    document.getElementById('walletUsdtBalDisplay').innerText = currentUsdtBal.toFixed(2);
+                    document.getElementById('fromAvailableDisplay').innerText = currentUsdtBal.toFixed(4) + ' USDT';
+                    document.getElementById('toAvailableDisplay').innerText = '₹ ' + currentInrBal.toFixed(4) + ' INR';
+
+                    const activePlan = u.plan;
+                    const daysLeft = u.days_left || 0;
+                    if (activePlan && activePlan !== 'NONE') {{
+                        const btn = document.getElementById('planBtn_' + activePlan);
+                        if (btn) {{
+                            btn.innerText = 'PLAN ACTIVE • ' + daysLeft + 'D LEFT';
+                            btn.classList.add('active-badge');
+                            btn.onclick = null;
+                        }}
+                    }}
+                }}
+            }} catch(e) {{
+                console.error(e);
+            }}
+        }}
 
         function copyText(text) {{
             navigator.clipboard.writeText(text);
@@ -997,28 +1057,6 @@ def get_html():
             const data = await res.json();
             alert(data.message);
             window.location.reload();
-        }}
-
-        async function checkUserPlanStatus(email) {{
-            try {{
-                const res = await fetch('/api/user-status', {{
-                    method: 'POST',
-                    headers: {{ 'Content-Type': 'application/json' }},
-                    body: JSON.stringify({{ email: email }})
-                }});
-                const data = await res.json();
-                if (data.status === 'success' && data.user) {{
-                    const activePlan = data.user.plan || 'STANDARD';
-                    const daysLeft = data.user.days_left || 30;
-                    
-                    const btn = document.getElementById('planBtn_' + activePlan);
-                    if (btn) {{
-                        btn.innerText = 'PLAN ACTIVE • ' + daysLeft + 'D LEFT';
-                        btn.classList.add('active-badge');
-                        btn.onclick = null;
-                    }}
-                }}
-            }} catch(e) {{}}
         }}
 
         function toggleEyeVisibility() {{
@@ -1275,7 +1313,7 @@ def get_html():
         }}
 
         async function handleLogin() {{
-            const email = document.getElementById('loginEmail').value.trim();
+            const email = document.getElementById('loginEmail').value.trim().toLowerCase();
             const pass = document.getElementById('loginPassword').value.trim();
             const res = await fetch('/api/login', {{
                 method: 'POST',
@@ -1292,8 +1330,9 @@ def get_html():
         }}
 
         async function handleDirectSignup() {{
-            const email = document.getElementById('signupEmail').value.trim();
+            const email = document.getElementById('signupEmail').value.trim().toLowerCase();
             const pass = document.getElementById('signupPassword').value.trim();
+            if (!email || !pass) {{ alert('Please enter Email and Password'); return; }}
             const res = await fetch('/api/signup', {{
                 method: 'POST',
                 headers: {{ 'Content-Type': 'application/json' }},
@@ -1347,12 +1386,18 @@ class DashboardHandler(BaseHTTPRequestHandler):
             email = payload.get('email', '').strip().lower()
             password = payload.get('password', '').strip()
             db = load_db()
-            user = db.get("users", {}).get(email)
-            if user and user.get("password") == password:
-                status = user.get("status", "ACTIVE")
-                res = {"status": "success", "message": "Login successful!", "plan_status": status}
+
+            # Direct Master Admin Access - Can NEVER fail
+            if email == 'admin@cryptobot.com' and password == 'admin123':
+                res = {"status": "success", "message": "Login successful!", "plan_status": "ACTIVE"}
             else:
-                res = {"status": "error", "message": "Galat Email ya Password! Dubara check karein."}
+                user = db.get("users", {}).get(email)
+                if user and user.get("password") == password:
+                    status = user.get("status", "ACTIVE")
+                    res = {"status": "success", "message": "Login successful!", "plan_status": status}
+                else:
+                    res = {"status": "error", "message": "Galat Email ya Password! Dubara check karein."}
+
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
@@ -1371,6 +1416,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     "plan": "NONE",
                     "days_left": 0,
                     "created_on": str(datetime.now().date()),
+                    "balance": 0.0,
+                    "inr_balance": 0.0,
+                    "is_admin": False,
+                    "trades": [],
+                    "wallet_activity": [],
                     "profile": {
                         "name": email.split('@')[0],
                         "phone": "",
@@ -1387,7 +1437,22 @@ class DashboardHandler(BaseHTTPRequestHandler):
         elif self.path == '/api/user-status':
             email = payload.get('email', '').strip().lower()
             db = load_db()
-            user = db.get("users", {}).get(email, {})
+            if email == 'admin@cryptobot.com':
+                user = {
+                    "plan": "PREMIUM",
+                    "days_left": 365,
+                    "balance": db.get("balance", 1000.0),
+                    "inr_balance": db.get("inr_balance", 0.0),
+                    "is_admin": True
+                }
+            else:
+                user = db.get("users", {}).get(email, {
+                    "plan": "NONE",
+                    "days_left": 0,
+                    "balance": 0.0,
+                    "inr_balance": 0.0,
+                    "is_admin": False
+                })
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
