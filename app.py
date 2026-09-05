@@ -17,6 +17,10 @@ PAYEE_NAME = "trade.ai"
 PLAN_PRICE_INR = 999
 USDT_INR_RATE = 91.50
 
+# Withdrawal Limits (INR)
+MIN_WITHDRAW_INR = 1000.0
+MAX_WITHDRAW_INR = 10000.0
+
 upi_intent_url = f"upi://pay?pa={MY_UPI_ID}&pn={urllib.parse.quote(PAYEE_NAME)}&am={PLAN_PRICE_INR}&cu=INR&tn={urllib.parse.quote('trade.ai Bot Deposit')}"
 qr_image_url = f"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={urllib.parse.quote(upi_intent_url)}"
 
@@ -235,7 +239,7 @@ def get_html():
         .btn-growth {{ background: #0284c7; color: #ffffff; border: none; border-radius: 20px; padding: 10px 20px; font-size: 13px; font-weight: 700; cursor: pointer; margin-bottom: 18px; display: inline-block; }}
         .btn-growth:hover {{ background: #0369a1; }}
 
-        /* Cards & Overview */
+        /* Open Position Card */
         .card-position {{ background: #0c1527; border: 1px solid #16233b; border-radius: 24px; padding: 26px 24px; position: relative; overflow: hidden; margin-bottom: 28px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }}
         .card-glow {{ position: absolute; top: -30px; right: -30px; width: 200px; height: 200px; background: radial-gradient(circle, rgba(56,189,248,0.18) 0%, rgba(0,0,0,0) 70%); border-radius: 50%; pointer-events: none; }}
         .card-title {{ font-size: 22px; font-weight: 800; color: #ffffff; margin-bottom: 16px; }}
@@ -263,7 +267,7 @@ def get_html():
         .summary-label {{ font-size: 11px; color: #94a3b8; font-weight: 600; text-transform: uppercase; }}
         .summary-val {{ font-size: 18px; font-weight: 800; margin-top: 4px; }}
 
-        /* BOT Wallet Styles (Exact Creddx UI) */
+        /* BOT Wallet Styles */
         .wallet-actions-bar {{ display: flex; gap: 8px; margin-bottom: 24px; overflow-x: auto; padding-bottom: 4px; }}
         .wallet-action-pill {{ background: #0c1527; border: 1px solid #16233b; border-radius: 20px; padding: 8px 16px; color: #94a3b8; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }}
         .wallet-action-pill.active {{ background: #38bdf8; color: #060b14; }}
@@ -273,17 +277,15 @@ def get_html():
         .step-circle {{ width: 22px; height: 22px; border-radius: 50%; background: #0284c7; color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; }}
         .payment-method-card {{ background: #0c1527; border: 1px solid #16233b; border-radius: 16px; padding: 20px; margin-bottom: 14px; text-align: left; }}
 
-        /* Conversion Card Components */
+        /* Conversion UI */
         .swap-box {{ background: #070d18; border: 1px solid #16233b; border-radius: 16px; padding: 18px; margin-bottom: 12px; }}
         .swap-label-row {{ display: flex; justify-content: space-between; font-size: 12px; color: #94a3b8; margin-bottom: 10px; font-weight: 600; }}
         .swap-input-row {{ display: flex; justify-content: space-between; align-items: center; gap: 12px; }}
         .swap-input {{ background: transparent; border: none; color: #ffffff; font-size: 26px; font-weight: 800; width: 60%; outline: none; }}
         .max-pill {{ background: rgba(56,189,248,0.15); border: 1px solid #0284c7; color: #38bdf8; padding: 4px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; }}
         .curr-pill {{ background: #0c1527; border: 1px solid #1e293b; color: #ffffff; padding: 8px 14px; border-radius: 10px; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px; }}
-        
         .swap-divider-btn {{ width: 40px; height: 40px; border-radius: 50%; background: #131b2e; border: 1px solid #1e293b; color: #38bdf8; display: flex; justify-content: center; align-items: center; font-size: 16px; margin: -6px auto; cursor: pointer; position: relative; z-index: 2; transition: 0.2s; }}
         .swap-divider-btn:hover {{ transform: rotate(180deg); background: #0284c7; color: white; }}
-
         .calc-breakdown {{ padding: 16px 4px; border-top: 1px solid #16233b; margin-top: 14px; }}
         .breakdown-row {{ display: flex; justify-content: space-between; font-size: 12px; color: #94a3b8; margin-bottom: 8px; }}
 
@@ -400,7 +402,7 @@ def get_html():
             </div>
         </div>
 
-        <!-- TAB 2: BOT Wallet View (Creddx UI - Deposit, Withdraw, Exact Conversion, History) -->
+        <!-- TAB 2: BOT Wallet View (INR Withdrawal Limits: Min 1k, Max 10k) -->
         <div id="viewBotWallet" style="display: none;">
             <!-- Wallet Overview Card -->
             <div class="card-position" style="padding: 22px 24px; margin-bottom: 20px;">
@@ -415,16 +417,16 @@ def get_html():
                     <div style="background: #0284c7; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px;">U</div>
                     <div>
                         <div style="font-size: 11px; color: #64748b; font-weight: 700;">USDT</div>
-                        <div style="font-size: 17px; font-weight: 800; color: #38bdf8;" id="walletUsdtBalDisplay">{balance:.2f}</div>
+                        <div style="font-size: 17px; font-weight: 800; color: #38bdf8;">{balance:.2f}</div>
                     </div>
                 </div>
             </div>
 
-            <!-- Action Pills Bar (DEPOSIT, WITHDRAW, CONVERSION, HISTORY - NO SEND) -->
+            <!-- Action Pills Bar -->
             <div class="wallet-actions-bar">
                 <button id="pillDeposit" class="wallet-action-pill" onclick="switchWalletTab('deposit')">↙ DEPOSIT • INR ▾</button>
-                <button id="pillWithdraw" class="wallet-action-pill" onclick="switchWalletTab('withdraw')">↗ WITHDRAW ▾</button>
-                <button id="pillConversion" class="wallet-action-pill active" onclick="switchWalletTab('conversion')">⇄ CONVERSION</button>
+                <button id="pillWithdraw" class="wallet-action-pill active" onclick="switchWalletTab('withdraw')">↗ WITHDRAW • INR ▾</button>
+                <button id="pillConversion" class="wallet-action-pill" onclick="switchWalletTab('conversion')">⇄ CONVERSION</button>
                 <button id="pillHistory" class="wallet-action-pill" onclick="switchWalletTab('history')">⏱ HISTORY</button>
             </div>
 
@@ -456,21 +458,28 @@ def get_html():
                 </div>
             </div>
 
-            <!-- Sub-tab 2: Withdraw -->
-            <div id="walletSubWithdraw" style="display: none;">
-                <h2 style="font-size: 22px; font-weight: 800; color: #ffffff; margin-bottom: 6px;">Withdraw Funds</h2>
-                <p style="font-size: 12px; color: #94a3b8; margin-bottom: 18px;">Request a withdrawal directly to your verified Bank Account or UPI.</p>
+            <!-- Sub-tab 2: Withdraw INR (Limits: Min ₹1,000, Max ₹10,000) -->
+            <div id="walletSubWithdraw">
+                <h2 style="font-size: 22px; font-weight: 800; color: #ffffff; margin-bottom: 6px;">Withdraw Funds (INR)</h2>
+                <p style="font-size: 12px; color: #94a3b8; margin-bottom: 16px;">Request an instant withdrawal in Indian Rupees directly to your verified Bank Account or UPI.</p>
+                
+                <div class="notice-box" style="border-color: #0284c7; background: rgba(2, 132, 199, 0.08); color: #38bdf8;">
+                    ℹ️ <strong>Withdrawal Policy:</strong> Minimum ₹1,000 INR • Maximum ₹10,000 INR per transaction • Payout via 24x7 IMPS / UPI
+                </div>
+
                 <div class="payment-method-card">
-                    <label style="font-size: 12px; color: #94a3b8; margin-bottom: 6px; display: block;">Withdrawal Amount (USDT)</label>
-                    <input id="withdrawAmt" type="number" class="input-box" placeholder="e.g. 50">
-                    <label style="font-size: 12px; color: #94a3b8; margin-bottom: 6px; display: block;">Destination UPI ID / Bank Account</label>
-                    <input id="withdrawDest" type="text" class="input-box" placeholder="e.g. yourname@okaxis">
-                    <button class="btn-action" style="background: #ef4444;" onclick="alert('Withdrawal request submitted! Verification takes 1-2 hours.')">Request Withdrawal</button>
+                    <label style="font-size: 12px; color: #94a3b8; margin-bottom: 6px; display: block; font-weight: 700;">Withdrawal Amount (₹ INR)</label>
+                    <input id="withdrawAmtInr" type="number" class="input-box" placeholder="Min ₹1,000 - Max ₹10,000" min="1000" max="10000">
+
+                    <label style="font-size: 12px; color: #94a3b8; margin-bottom: 6px; display: block; font-weight: 700;">Destination UPI ID / Bank Account Details</label>
+                    <input id="withdrawDest" type="text" class="input-box" placeholder="e.g. yourname@okaxis or A/C No + IFSC">
+                    
+                    <button class="btn-action" style="background: #ef4444; padding: 14px; font-size: 15px; margin-top: 6px;" onclick="submitWithdrawalInr()">Request Withdrawal (INR)</button>
                 </div>
             </div>
 
-            <!-- Sub-tab 3: EXACT Conversion (INR <-> USDT) UI from Screenshot -->
-            <div id="walletSubConversion">
+            <!-- Sub-tab 3: Conversion (INR <-> USDT) -->
+            <div id="walletSubConversion" style="display: none;">
                 <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 6px;">
                     <div style="background: #064e3b; border: 1px solid #059669; width: 36px; height: 36px; border-radius: 10px; display: flex; justify-content: center; align-items: center; font-size: 18px;">🤖</div>
                     <div>
@@ -484,7 +493,6 @@ def get_html():
                 </div>
 
                 <div class="payment-method-card" style="padding: 24px;">
-                    <!-- From Box -->
                     <div class="swap-box">
                         <div class="swap-label-row">
                             <span>From</span>
@@ -499,10 +507,8 @@ def get_html():
                         </div>
                     </div>
 
-                    <!-- Swap Switch Button -->
                     <button class="swap-divider-btn" onclick="toggleSwapDirection()" title="Swap Currencies">⇅</button>
 
-                    <!-- To Box -->
                     <div class="swap-box">
                         <div class="swap-label-row">
                             <span>To</span>
@@ -514,7 +520,6 @@ def get_html():
                         </div>
                     </div>
 
-                    <!-- Breakdown & Live Rate -->
                     <div class="calc-breakdown">
                         <div class="breakdown-row">
                             <span><span id="rateDirectionLabel">USDT → INR</span> <span style="background:#064e3b; color:#34d399; font-size:10px; padding:2px 6px; border-radius:4px; margin-left:4px;">● Live</span></span>
@@ -607,9 +612,11 @@ def get_html():
 
     <script>
         const CURRENT_RATE = {USDT_INR_RATE};
+        const MIN_WITHDRAW = {MIN_WITHDRAW_INR};
+        const MAX_WITHDRAW = {MAX_WITHDRAW_INR};
         let currentUsdtBal = {balance};
         let currentInrBal = {inr_balance};
-        let swapDirection = 'USDT_TO_INR'; // or 'INR_TO_USDT'
+        let swapDirection = 'USDT_TO_INR';
 
         window.addEventListener('DOMContentLoaded', () => {{
             const saved = localStorage.getItem('cryptobot_user_email');
@@ -633,7 +640,7 @@ def get_html():
             if (tab === 'botWallet') {{
                 document.getElementById('viewBotWallet').style.display = 'block';
                 document.getElementById('navBotWallet').classList.add('active');
-                switchWalletTab('conversion');
+                switchWalletTab('withdraw');
             }} else if (tab === 'overview') {{
                 document.getElementById('viewOverview').style.display = 'block';
                 document.getElementById('navOverview').classList.add('active');
@@ -669,6 +676,35 @@ def get_html():
             }}
         }}
 
+        async function submitWithdrawalInr() {{
+            const amtInr = parseFloat(document.getElementById('withdrawAmtInr').value) || 0;
+            const dest = document.getElementById('withdrawDest').value.trim();
+
+            if (amtInr < MIN_WITHDRAW) {{
+                alert('❌ Minimum withdrawal amount ₹1,000 INR hona chahiye!');
+                return;
+            }}
+            if (amtInr > MAX_WITHDRAW) {{
+                alert('❌ Maximum withdrawal limit ₹10,000 INR hai!');
+                return;
+            }}
+            if (!dest) {{
+                alert('❌ Kripya UPI ID ya Bank Account details daalein!');
+                return;
+            }}
+
+            const res = await fetch('/api/withdraw-inr', {{
+                method: 'POST',
+                headers: {{ 'Content-Type': 'application/json' }},
+                body: JSON.stringify({{ amount_inr: amtInr, destination: dest }})
+            }});
+            const data = await res.json();
+            alert(data.message);
+            if (data.status === 'success') {{
+                window.location.reload();
+            }}
+        }}
+
         function handleSwapCalculate() {{
             const val = parseFloat(document.getElementById('fromAmountInput').value) || 0;
             if (swapDirection === 'USDT_TO_INR') {{
@@ -699,7 +735,6 @@ def get_html():
                 document.getElementById('fromAvailableDisplay').innerText = '₹ ' + currentInrBal.toFixed(2) + ' INR';
                 document.getElementById('toAvailableDisplay').innerText = currentUsdtBal.toFixed(4) + ' USDT';
                 document.getElementById('rateDirectionLabel').innerText = 'INR → USDT';
-                document.getElementById('liveRateText').innerText = '1 USDT ≈ ' + CURRENT_RATE.toFixed(4) + ' INR';
             }} else {{
                 swapDirection = 'USDT_TO_INR';
                 document.getElementById('fromCurrPill').innerText = 'USDT ▾';
@@ -707,7 +742,6 @@ def get_html():
                 document.getElementById('fromAvailableDisplay').innerText = currentUsdtBal.toFixed(4) + ' USDT';
                 document.getElementById('toAvailableDisplay').innerText = '₹ ' + currentInrBal.toFixed(2) + ' INR';
                 document.getElementById('rateDirectionLabel').innerText = 'USDT → INR';
-                document.getElementById('liveRateText').innerText = '1 USDT ≈ ' + CURRENT_RATE.toFixed(4) + ' INR';
             }}
             document.getElementById('fromAmountInput').value = '0.00';
             document.getElementById('toAmountInput').value = '0';
@@ -888,6 +922,39 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 }
                 save_db(db)
                 res = {"status": "success", "message": "Account created successfully!"}
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode('utf-8'))
+
+        elif self.path == '/api/withdraw-inr':
+            amount_inr = float(payload.get('amount_inr', 0.0))
+            destination = payload.get('destination', '').strip()
+            db = load_db()
+
+            if amount_inr < MIN_WITHDRAW_INR:
+                res = {"status": "error", "message": f"❌ Minimum withdrawal ₹{MIN_WITHDRAW_INR:,.0f} INR hona chahiye!"}
+            elif amount_inr > MAX_WITHDRAW_INR:
+                res = {"status": "error", "message": f"❌ Maximum withdrawal ₹{MAX_WITHDRAW_INR:,.0f} INR tak hi allow hai!"}
+            elif not destination:
+                res = {"status": "error", "message": "❌ Kripya Destination UPI ID ya Bank Details daalein!"}
+            else:
+                usdt_needed = amount_inr / USDT_INR_RATE
+                if db['balance'] < usdt_needed:
+                    res = {"status": "error", "message": f"❌ Insufficient Balance! ₹{amount_inr:,.0f} nikaalne ke liye {usdt_needed:.2f} USDT chahiye."}
+                else:
+                    db['balance'] -= usdt_needed
+                    now = datetime.now()
+                    db.setdefault("wallet_activity", []).insert(0, {
+                        "date": now.strftime("%d %b %Y"),
+                        "time": now.strftime("%I:%M %p").lower(),
+                        "type": f"Withdrawal (₹{amount_inr:,.0f} INR)",
+                        "amount": -usdt_needed,
+                        "status": "Completed"
+                    })
+                    save_db(db)
+                    res = {"status": "success", "message": f"✅ ₹{amount_inr:,.0f} ka withdrawal request confirm ho gaya!\n{destination} par transfer process start ho gaya hai."}
+
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
