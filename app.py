@@ -11,7 +11,7 @@ DB_FILE = 'trades.json'
 coins = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT']
 exchange = ccxt.binance()
 
-# UPI Details
+# Aapki UPI Details
 MY_UPI_ID = "8406012453-2@ibl"
 PAYEE_NAME = "trade.ai"
 PLAN_PRICE_INR = 999
@@ -25,27 +25,19 @@ autopilot_state = {
     "last_result": "Scanning loop online"
 }
 
+# Database Helpers
 def load_db():
     default_expiry = (datetime.now() + timedelta(days=30)).strftime("%d %b %Y")
     if os.path.exists(DB_FILE):
         with open(DB_FILE, 'r') as f:
             data = json.load(f)
-            if "users" not in data:
-                data["users"] = {
-                    "admin@cryptobot.com": {
-                        "password": "admin123",
-                        "status": "ACTIVE",
-                        "plan": "Lifetime Owner",
-                        "expires_on": "Permanent",
-                        "profile": {
-                            "name": "Modassir",
-                            "phone": "+91 8406012453",
-                            "country": "India 🇮🇳",
-                            "risk": "Moderate (1.5%)",
-                            "avatar": ""
-                        }
-                    }
-                }
+            if "wallet_activity" not in data:
+                data["wallet_activity"] = [
+                    {"date": "05 Sep 2026", "time": "10:30 am", "type": "Investment", "amount": 1000.0, "status": "Completed"},
+                    {"date": "04 Sep 2026", "time": "08:15 pm", "type": "Investment Withdrawal", "amount": -200.0, "status": "Completed"},
+                    {"date": "04 Sep 2026", "time": "05:52 pm", "type": "Investment", "amount": 2600.0, "status": "Completed"},
+                    {"date": "03 Sep 2026", "time": "08:39 pm", "type": "Investment Withdrawal", "amount": -600.0, "status": "Completed"}
+                ]
             return data
     return {
         "balance": 1000.0,
@@ -67,6 +59,11 @@ def load_db():
             }
         },
         "trades": [],
+        "wallet_activity": [
+            {"date": "05 Sep 2026", "time": "10:30 am", "type": "Investment", "amount": 1000.0, "status": "Completed"},
+            {"date": "04 Sep 2026", "time": "08:15 pm", "type": "Investment Withdrawal", "amount": -200.0, "status": "Completed"},
+            {"date": "04 Sep 2026", "time": "05:52 pm", "type": "Investment", "amount": 2600.0, "status": "Completed"}
+        ],
         "payments": []
     }
 
@@ -74,6 +71,7 @@ def save_db(data):
     with open(DB_FILE, 'w') as f:
         json.dump(data, f, indent=4)
 
+# Core Bot Execution Logic
 def execute_bot_scan(source="Manual"):
     db = load_db()
     today_str = str(datetime.now().date())
@@ -146,12 +144,14 @@ def background_autopilot_worker():
 
 threading.Thread(target=background_autopilot_worker, daemon=True).start()
 
+# HTML Dashboard Page
 def get_html():
     data = load_db()
     balance = data.get("balance", 1000.0)
     profit = balance - 1000.0
     profit_sign = "+" if profit >= 0 else ""
 
+    # Realized Trades HTML
     trades_html = ""
     for t in reversed(data.get("trades", [])):
         c = t.get('coin', '').replace('/', '-')
@@ -174,6 +174,27 @@ def get_html():
     if not trades_html:
         trades_html = "<div style='text-align: center; color: #64748b; padding: 24px;'>No realized trade history yet.</div>"
 
+    # Wallet Activity (Overview) HTML
+    wallet_html = ""
+    for w in data.get("wallet_activity", []):
+        amt = w.get("amount", 0.0)
+        amt_str = f"+${amt:.2f}" if amt >= 0 else f"-${abs(amt):.2f}"
+        amt_color = "#34d399" if amt >= 0 else "#ef4444"
+        type_color = "#bef264" if amt >= 0 else "#f87171"
+        wallet_html += f"""
+        <div class="wallet-card">
+            <div>
+                <div style="font-size: 13px; color: #f8fafc; font-weight: 600;">{w.get('date', '')}</div>
+                <div style="font-size: 11px; color: #71717a; margin-top: 2px;">{w.get('time', '')}</div>
+                <div style="font-size: 13px; color: {type_color}; margin-top: 8px; font-weight: 600;">{w.get('type', '')}</div>
+            </div>
+            <div style="text-align: right;">
+                <div style="font-size: 16px; font-weight: 800; color: {amt_color};">{amt_str}</div>
+                <span class="status-badge">{w.get('status', 'Completed')}</span>
+            </div>
+        </div>
+        """
+
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -182,9 +203,10 @@ def get_html():
     <title>trade.ai - Terminal</title>
     <style>
         * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }}
-        body {{ background: #060b14; color: #f8fafc; padding: 20px 14px; min-height: 100vh; }}
+        body {{ background: #060b14; color: #f8fafc; padding: 18px 12px; min-height: 100vh; }}
         .container {{ max-width: 680px; margin: 0 auto; }}
 
+        /* Top Bar */
         .top-bar {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }}
         .pill-home {{ background: #0c1527; border: 1px solid #1e293b; color: #38bdf8; border-radius: 20px; padding: 6px 16px; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px; cursor: pointer; text-decoration: none; }}
         .live-pill {{ background: #0b1a2f; border: 1px solid #133256; border-radius: 20px; padding: 6px 14px; font-size: 12px; display: flex; align-items: center; gap: 8px; color: #38bdf8; font-weight: 700; }}
@@ -192,46 +214,55 @@ def get_html():
         .green-dot {{ width: 8px; height: 8px; border-radius: 50%; background: #10b981; display: inline-block; box-shadow: 0 0 8px #10b981; }}
         .avatar-btn {{ width: 36px; height: 36px; border-radius: 50%; background: #38bdf8; color: #060b14; display: flex; justify-content: center; align-items: center; font-weight: 800; font-size: 14px; cursor: pointer; border: none; }}
 
+        /* Navbar */
         .nav-bar {{ background: #0c1527; border: 1px solid #16233b; border-radius: 28px; padding: 6px 10px; display: flex; justify-content: space-between; align-items: center; overflow-x: auto; margin-bottom: 20px; gap: 6px; }}
         .nav-item {{ color: #94a3b8; text-decoration: none; font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 20px; white-space: nowrap; cursor: pointer; border: none; background: transparent; }}
         .nav-item.active {{ background: #0284c7; color: #ffffff; font-weight: 700; }}
 
-        .btn-growth {{ background: #0284c7; color: #ffffff; border: none; border-radius: 20px; padding: 10px 22px; font-size: 13px; font-weight: 700; cursor: pointer; margin-bottom: 20px; display: inline-block; transition: 0.2s; }}
+        /* Action Buttons */
+        .btn-growth {{ background: #0284c7; color: #ffffff; border: none; border-radius: 20px; padding: 10px 20px; font-size: 13px; font-weight: 700; cursor: pointer; margin-bottom: 18px; display: inline-block; }}
         .btn-growth:hover {{ background: #0369a1; }}
+        .btn-secondary {{ background: #131b2e; border: 1px solid #27272a; color: #e2e8f0; border-radius: 20px; padding: 8px 16px; font-size: 12px; font-weight: 600; cursor: pointer; }}
 
-        .card-position {{ background: #0c1527; border: 1px solid #16233b; border-radius: 24px; padding: 26px 24px; position: relative; overflow: hidden; margin-bottom: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }}
+        /* Open Position Card */
+        .card-position {{ background: #0c1527; border: 1px solid #16233b; border-radius: 24px; padding: 26px 24px; position: relative; overflow: hidden; margin-bottom: 28px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }}
         .card-glow {{ position: absolute; top: -30px; right: -30px; width: 200px; height: 200px; background: radial-gradient(circle, rgba(56,189,248,0.18) 0%, rgba(0,0,0,0) 70%); border-radius: 50%; pointer-events: none; }}
         .card-title {{ font-size: 22px; font-weight: 800; color: #ffffff; margin-bottom: 16px; }}
         
         .portfolio-label {{ font-size: 11px; font-weight: 700; letter-spacing: 0.8px; color: #64748b; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; font-style: italic; }}
-        .stats-row {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; border-bottom: 1px solid #16233b; padding-bottom: 22px; margin-bottom: 26px; }}
-        .stat-col-title {{ font-size: 10px; color: #64748b; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 2px; }}
+        .stats-row {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; border-bottom: 1px solid #16233b; padding-bottom: 20px; margin-bottom: 24px; }}
+        .stat-col-title {{ font-size: 10px; color: #64748b; font-weight: 700; margin-bottom: 4px; }}
         .stat-col-val {{ font-size: 13px; font-weight: 700; color: #ffffff; }}
         .stat-col-val.blue {{ color: #38bdf8; }}
-        
-        .no-position {{ text-align: center; color: #64748b; font-size: 15px; font-weight: 500; padding: 16px 0 8px; }}
+        .no-position {{ text-align: center; color: #64748b; font-size: 15px; font-weight: 500; padding: 14px 0 6px; }}
 
+        /* Realized Trade History */
         .history-title {{ text-align: center; font-size: 20px; font-weight: 800; color: #ffffff; margin-bottom: 16px; }}
         .pill-btn-wide {{ background: #0c1527; border: 1px solid #16233b; border-radius: 12px; padding: 12px; text-align: center; color: #cbd5e1; font-size: 13px; font-weight: 600; margin-bottom: 10px; cursor: pointer; display: block; width: 100%; }}
-        
         .coin-filter-row {{ display: flex; gap: 8px; margin: 18px 0 14px; overflow-x: auto; }}
         .coin-filter {{ background: #0c1527; border: 1px solid #16233b; border-radius: 10px; padding: 8px 16px; color: #94a3b8; font-size: 12px; font-weight: 700; cursor: pointer; border: none; }}
         .coin-filter.active {{ background: #0284c7; color: #ffffff; }}
-
         .trade-row {{ background: #0c1527; border: 1px solid #16233b; border-radius: 14px; padding: 14px 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }}
         .coin-badge {{ background: #0b1a2f; color: #38bdf8; border: 1px solid #133256; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 800; }}
 
+        /* Wallet Activity (Overview View) */
+        .wallet-card {{ background: #0c1527; border: 1px solid #16233b; border-radius: 16px; padding: 18px 20px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }}
+        .status-badge {{ background: #064e3b; color: #34d399; border: 1px solid #059669; padding: 4px 12px; border-radius: 16px; font-size: 11px; font-weight: 700; display: inline-block; margin-top: 6px; }}
+
+        /* Modal Styles */
         .modal {{ display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(6,11,20,0.92); justify-content: center; align-items: center; z-index: 100; padding: 16px; }}
         .modal-content {{ background: #0c1527; border: 1px solid #1e293b; border-radius: 20px; width: 100%; max-width: 420px; padding: 24px; text-align: center; }}
         .input-box {{ width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #1e293b; background: #060b14; color: white; margin-bottom: 10px; font-size: 14px; }}
         .btn-action {{ background: #0284c7; color: #ffffff; border: none; width: 100%; padding: 12px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; }}
         .btn-close {{ background: transparent; color: #64748b; border: none; margin-top: 10px; cursor: pointer; font-size: 13px; }}
 
+        /* Auth Screen */
         #authOverlay {{ position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #060b14; z-index: 99; display: flex; justify-content: center; align-items: center; padding: 16px; }}
         .auth-card {{ background: #0c1527; border: 1px solid #16233b; border-radius: 20px; padding: 28px 24px; width: 100%; max-width: 380px; text-align: center; }}
     </style>
 </head>
 <body>
+    <!-- Auth Screen -->
     <div id="authOverlay">
         <div class="auth-card">
             <h2 style="color: #38bdf8; font-size: 26px; font-weight: 800; margin-bottom: 6px;">trade.ai</h2>
@@ -257,9 +288,11 @@ def get_html():
         </div>
     </div>
 
+    <!-- Main Platform -->
     <div class="container" id="mainDashboard" style="display:none;">
+        <!-- Top Bar -->
         <div class="top-bar">
-            <button class="pill-home" onclick="window.location.reload()">⚡ trade.ai</button>
+            <button class="pill-home" onclick="showTab('tradeLogs')">⚡ trade.ai</button>
             <div style="display: flex; align-items: center; gap: 10px;">
                 <div class="live-pill">
                     <span class="live-tag">LIVE</span>
@@ -270,64 +303,98 @@ def get_html():
             </div>
         </div>
 
+        <!-- Navigation Bar -->
         <div class="nav-bar">
-            <button class="nav-item">Home</button>
-            <button class="nav-item">Strategies</button>
+            <button class="nav-item" onclick="showTab('tradeLogs')">Home</button>
+            <button class="nav-item" onclick="showTab('tradeLogs')">Strategies</button>
             <button class="nav-item" onclick="openPaymentModal()">Plans</button>
-            <button class="nav-item active">Trade Logs</button>
-            <button class="nav-item">BOT Wallet</button>
-            <button class="nav-item">Overview</button>
+            <button id="navTradeLogs" class="nav-item active" onclick="showTab('tradeLogs')">Trade Logs</button>
+            <button class="nav-item" onclick="showTab('overview')">BOT Wallet</button>
+            <button id="navOverview" class="nav-item" onclick="showTab('overview')">Overview</button>
             <button class="nav-item" onclick="logoutUser()">Logout</button>
         </div>
 
-        <button class="btn-growth" onclick="triggerScan()">View Balance Growth & Run Scan</button>
+        <!-- TAB 1: Trade Logs View (Default) -->
+        <div id="viewTradeLogs">
+            <button class="btn-growth" onclick="triggerScan()">View Balance Growth & Run Scan</button>
 
-        <div class="card-position">
-            <div class="card-glow"></div>
-            <div class="card-title">Open Position</div>
-            <div class="portfolio-label">PORTFOLIO OVERVIEW 👁</div>
+            <div class="card-position">
+                <div class="card-glow"></div>
+                <div class="card-title">Open Position</div>
+                <div class="portfolio-label">PORTFOLIO OVERVIEW 👁</div>
 
-            <div class="stats-row">
-                <div>
-                    <div class="stat-col-title">PRINCIPAL ▾</div>
-                    <div class="stat-col-val">1000.00 <span style="font-size: 10px; color:#64748b;">USDT</span></div>
+                <div class="stats-row">
+                    <div>
+                        <div class="stat-col-title">PRINCIPAL ▾</div>
+                        <div class="stat-col-val">1000.00 <span style="font-size: 10px; color:#64748b;">USDT</span></div>
+                    </div>
+                    <div>
+                        <div class="stat-col-title">E. PNL ▾</div>
+                        <div class="stat-col-val blue">{profit_sign}{profit:.2f}</div>
+                    </div>
+                    <div>
+                        <div class="stat-col-title">PNL ▾</div>
+                        <div class="stat-col-val blue">{profit_sign}{profit:.2f} <span style="font-size: 10px;">USDT</span></div>
+                    </div>
+                    <div>
+                        <div class="stat-col-title">CURRENT</div>
+                        <div class="stat-col-val">{balance:.2f} <span style="font-size: 10px; color:#64748b;">USDT</span></div>
+                    </div>
                 </div>
-                <div>
-                    <div class="stat-col-title">E. PNL ▾</div>
-                    <div class="stat-col-val blue">{profit_sign}{profit:.2f}</div>
-                </div>
-                <div>
-                    <div class="stat-col-title">PNL ▾</div>
-                    <div class="stat-col-val blue">{profit_sign}{profit:.2f} <span style="font-size: 10px;">USDT</span></div>
-                </div>
-                <div>
-                    <div class="stat-col-title">CURRENT</div>
-                    <div class="stat-col-val">{balance:.2f} <span style="font-size: 10px; color:#64748b;">USDT</span></div>
-                </div>
+
+                <div class="no-position">No open positions found. (2/2 Daily Limit Completed)</div>
             </div>
 
-            <div class="no-position">No open positions found. (2/2 Daily Limit Completed)</div>
+            <div>
+                <div class="history-title">Realized Trade History</div>
+                <button class="pill-btn-wide">Compare with BTC & ETH</button>
+                <button class="pill-btn-wide" onclick="alert('Downloading Trade PDF Report...')">Download Trade PDF</button>
+
+                <div class="coin-filter-row">
+                    <button class="coin-filter active" onclick="filterCoin('ALL', this)">ALL</button>
+                    <button class="coin-filter" onclick="filterCoin('ETH-USDT', this)">ETH-USDT</button>
+                    <button class="coin-filter" onclick="filterCoin('BTC-USDT', this)">BTC-USDT</button>
+                    <button class="coin-filter" onclick="filterCoin('SOL-USDT', this)">SOL-USDT</button>
+                </div>
+
+                <div id="tradesListContainer">
+                    {trades_html}
+                </div>
+            </div>
         </div>
 
-        <div>
-            <div class="history-title">Realized Trade History</div>
-
-            <button class="pill-btn-wide">Compare with BTC & ETH</button>
-            <button class="pill-btn-wide" onclick="alert('Downloading Trade PDF Report...')">Download Trade PDF</button>
-
-            <div class="coin-filter-row">
-                <button class="coin-filter active" onclick="filterCoin('ALL', this)">ALL</button>
-                <button class="coin-filter" onclick="filterCoin('ETH-USDT', this)">ETH-USDT</button>
-                <button class="coin-filter" onclick="filterCoin('BTC-USDT', this)">BTC-USDT</button>
-                <button class="coin-filter" onclick="filterCoin('SOL-USDT', this)">SOL-USDT</button>
+        <!-- TAB 2: Overview / Bot Wallet Activity View -->
+        <div id="viewOverview" style="display: none;">
+            <div style="margin-bottom: 22px;">
+                <h2 style="font-size: 24px; font-weight: 800; color: #ffffff; margin-bottom: 6px;">Bot Wallet Activity</h2>
+                <p style="font-size: 13px; color: #94a3b8; line-height: 1.5;">
+                    Track all automated trading transactions, earnings, and fund movements generated by your active bot strategies.
+                </p>
             </div>
 
-            <div id="tradesListContainer">
-                {trades_html}
+            <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
+                <button class="btn-growth" style="margin-bottom: 0;" onclick="openTransactionModal('Investment')">+ Add Investment</button>
+                <button class="btn-secondary" onclick="openTransactionModal('Investment Withdrawal')">- Request Withdrawal</button>
+                <button class="btn-secondary" onclick="alert('Referral Earnings: $0.00 (Share your link to earn 10%)')">View Referral Earnings</button>
+            </div>
+
+            <div id="walletActivityList">
+                {wallet_html}
             </div>
         </div>
     </div>
 
+    <!-- Transaction Modal (Deposit / Withdrawal) -->
+    <div id="txModal" class="modal">
+        <div class="modal-content">
+            <h3 id="txModalTitle" style="color: #38bdf8; margin-bottom: 12px;">Add Investment</h3>
+            <input id="txAmountInput" type="number" class="input-box" placeholder="Enter Amount in USDT (e.g. 500)">
+            <button class="btn-action" style="background: #10b981;" onclick="submitWalletAction()">Confirm Transaction</button>
+            <button class="btn-close" onclick="closeTransactionModal()">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Profile Modal -->
     <div id="profileModal" class="modal">
         <div class="modal-content">
             <h3 style="color: #38bdf8; margin-bottom: 14px;">User Profile & Settings</h3>
@@ -338,6 +405,7 @@ def get_html():
         </div>
     </div>
 
+    <!-- Plans & Payment Modal (UPI) -->
     <div id="payModal" class="modal">
         <div class="modal-content">
             <h3 style="color: #38bdf8;">30 Days Pro Trading Plan</h3>
@@ -354,6 +422,8 @@ def get_html():
     </div>
 
     <script>
+        let currentTxType = 'Investment';
+
         window.addEventListener('DOMContentLoaded', () => {{
             const saved = localStorage.getItem('cryptobot_user_email');
             if (saved) {{
@@ -363,6 +433,20 @@ def get_html():
                 document.getElementById('avatarBtn').innerText = initial;
             }}
         }});
+
+        function showTab(tab) {{
+            if (tab === 'overview') {{
+                document.getElementById('viewTradeLogs').style.display = 'none';
+                document.getElementById('viewOverview').style.display = 'block';
+                document.getElementById('navOverview').classList.add('active');
+                document.getElementById('navTradeLogs').classList.remove('active');
+            }} else {{
+                document.getElementById('viewOverview').style.display = 'none';
+                document.getElementById('viewTradeLogs').style.display = 'block';
+                document.getElementById('navTradeLogs').classList.add('active');
+                document.getElementById('navOverview').classList.remove('active');
+            }}
+        }}
 
         function switchAuthTab(tab) {{
             if (tab === 'login') {{
@@ -421,6 +505,32 @@ def get_html():
         function closeProfileModal() {{ document.getElementById('profileModal').style.display = 'none'; }}
         function openPaymentModal() {{ document.getElementById('payModal').style.display = 'flex'; }}
         function closePaymentModal() {{ document.getElementById('payModal').style.display = 'none'; }}
+
+        function openTransactionModal(type) {{
+            currentTxType = type;
+            document.getElementById('txModalTitle').innerText = type;
+            document.getElementById('txModal').style.display = 'flex';
+        }}
+        function closeTransactionModal() {{
+            document.getElementById('txModal').style.display = 'none';
+        }}
+
+        async function submitWalletAction() {{
+            const amt = parseFloat(document.getElementById('txAmountInput').value);
+            if (!amt || amt <= 0) {{
+                alert('Please enter a valid amount!');
+                return;
+            }}
+            const res = await fetch('/api/wallet-action', {{
+                method: 'POST',
+                headers: {{ 'Content-Type': 'application/json' }},
+                body: JSON.stringify({{ type: currentTxType, amount: amt }})
+            }});
+            const data = await res.json();
+            alert(data.message);
+            closeTransactionModal();
+            window.location.reload();
+        }}
 
         function filterCoin(coin, btn) {{
             document.querySelectorAll('.coin-filter').forEach(b => b.classList.remove('active'));
@@ -511,6 +621,29 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 }
                 save_db(db)
                 res = {"status": "success", "message": "Account created successfully!"}
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode('utf-8'))
+
+        elif self.path == '/api/wallet-action':
+            act_type = payload.get('type', 'Investment')
+            amount = float(payload.get('amount', 0.0))
+            db = load_db()
+            is_withdrawal = act_type == 'Investment Withdrawal'
+            final_amount = -abs(amount) if is_withdrawal else abs(amount)
+            db["balance"] += final_amount
+            
+            now = datetime.now()
+            db.setdefault("wallet_activity", []).insert(0, {
+                "date": now.strftime("%d %b %Y"),
+                "time": now.strftime("%I:%M %p").lower(),
+                "type": act_type,
+                "amount": final_amount,
+                "status": "Completed"
+            })
+            save_db(db)
+            res = {"status": "success", "message": f"{act_type} of ${abs(amount):.2f} recorded!"}
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
