@@ -15,7 +15,7 @@ exchange = ccxt.binance()
 MY_UPI_ID = "8406012453-2@ibl"
 PAYEE_NAME = "trade.ai"
 PLAN_PRICE_INR = 999
-USDT_INR_RATE = 88.50
+USDT_INR_RATE = 91.50
 
 upi_intent_url = f"upi://pay?pa={MY_UPI_ID}&pn={urllib.parse.quote(PAYEE_NAME)}&am={PLAN_PRICE_INR}&cu=INR&tn={urllib.parse.quote('trade.ai Bot Deposit')}"
 qr_image_url = f"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={urllib.parse.quote(upi_intent_url)}"
@@ -35,6 +35,8 @@ def load_db():
     if os.path.exists(DB_FILE):
         with open(DB_FILE, 'r') as f:
             data = json.load(f)
+            if "inr_balance" not in data:
+                data["inr_balance"] = 0.0
             if "wallet_activity" in data:
                 data["wallet_activity"] = [
                     w for w in data["wallet_activity"] 
@@ -47,6 +49,7 @@ def load_db():
             return data
     return {
         "balance": 1000.0,
+        "inr_balance": 0.0,
         "daily_trades_taken": 0,
         "last_date": str(datetime.now().date()),
         "users": {
@@ -150,6 +153,7 @@ threading.Thread(target=background_autopilot_worker, daemon=True).start()
 def get_html():
     data = load_db()
     balance = data.get("balance", 1000.0)
+    inr_balance = data.get("inr_balance", 0.0)
     profit = balance - 1000.0
     profit_sign = "+" if profit >= 0 else ""
 
@@ -176,7 +180,7 @@ def get_html():
     if not trades_html:
         trades_html = "<div style='text-align: center; color: #64748b; padding: 24px;'>No realized trade history yet.</div>"
 
-    # Wallet Activity (Overview View) HTML
+    # Wallet Activity HTML
     wallet_html = ""
     total_invested = 0.0
     total_withdrawn = 0.0
@@ -204,9 +208,6 @@ def get_html():
         </div>
         """
 
-    if not wallet_html:
-        wallet_html = "<div style='text-align: center; color: #64748b; padding: 24px;'>No transaction history found.</div>"
-
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -231,11 +232,10 @@ def get_html():
         .nav-item {{ color: #94a3b8; text-decoration: none; font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 20px; white-space: nowrap; cursor: pointer; border: none; background: transparent; }}
         .nav-item.active {{ background: #0284c7; color: #ffffff; font-weight: 700; }}
 
-        /* Action Buttons */
         .btn-growth {{ background: #0284c7; color: #ffffff; border: none; border-radius: 20px; padding: 10px 20px; font-size: 13px; font-weight: 700; cursor: pointer; margin-bottom: 18px; display: inline-block; }}
         .btn-growth:hover {{ background: #0369a1; }}
 
-        /* Open Position Card */
+        /* Cards & Overview */
         .card-position {{ background: #0c1527; border: 1px solid #16233b; border-radius: 24px; padding: 26px 24px; position: relative; overflow: hidden; margin-bottom: 28px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }}
         .card-glow {{ position: absolute; top: -30px; right: -30px; width: 200px; height: 200px; background: radial-gradient(circle, rgba(56,189,248,0.18) 0%, rgba(0,0,0,0) 70%); border-radius: 50%; pointer-events: none; }}
         .card-title {{ font-size: 22px; font-weight: 800; color: #ffffff; margin-bottom: 16px; }}
@@ -263,14 +263,29 @@ def get_html():
         .summary-label {{ font-size: 11px; color: #94a3b8; font-weight: 600; text-transform: uppercase; }}
         .summary-val {{ font-size: 18px; font-weight: 800; margin-top: 4px; }}
 
-        /* BOT Wallet Specific Styles (Matching Creddx UI) */
+        /* BOT Wallet Styles (Exact Creddx UI) */
         .wallet-actions-bar {{ display: flex; gap: 8px; margin-bottom: 24px; overflow-x: auto; padding-bottom: 4px; }}
         .wallet-action-pill {{ background: #0c1527; border: 1px solid #16233b; border-radius: 20px; padding: 8px 16px; color: #94a3b8; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }}
         .wallet-action-pill.active {{ background: #38bdf8; color: #060b14; }}
-        .step-indicator {{ display: flex; align-items: center; gap: 10px; margin-bottom: 18px; font-size: 12px; font-weight: 700; color: #71717a; }}
+        
+        .notice-box {{ background: rgba(56, 189, 248, 0.06); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 14px; padding: 14px 18px; margin-bottom: 20px; color: #94a3b8; font-size: 12px; line-height: 1.5; text-align: left; }}
+        .step-indicator {{ display: flex; align-items: center; gap: 10px; margin-bottom: 18px; font-size: 12px; font-weight: 700; color: #64748b; }}
         .step-circle {{ width: 22px; height: 22px; border-radius: 50%; background: #0284c7; color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; }}
-        .notice-box {{ background: rgba(245, 158, 11, 0.08); border: 1px solid #f59e0b; border-radius: 12px; padding: 14px 18px; margin-bottom: 20px; color: #fcd34d; font-size: 12px; line-height: 1.5; text-align: left; }}
-        .payment-method-card {{ background: #0c1527; border: 1px solid #16233b; border-radius: 16px; padding: 18px; margin-bottom: 14px; text-align: left; }}
+        .payment-method-card {{ background: #0c1527; border: 1px solid #16233b; border-radius: 16px; padding: 20px; margin-bottom: 14px; text-align: left; }}
+
+        /* Conversion Card Components */
+        .swap-box {{ background: #070d18; border: 1px solid #16233b; border-radius: 16px; padding: 18px; margin-bottom: 12px; }}
+        .swap-label-row {{ display: flex; justify-content: space-between; font-size: 12px; color: #94a3b8; margin-bottom: 10px; font-weight: 600; }}
+        .swap-input-row {{ display: flex; justify-content: space-between; align-items: center; gap: 12px; }}
+        .swap-input {{ background: transparent; border: none; color: #ffffff; font-size: 26px; font-weight: 800; width: 60%; outline: none; }}
+        .max-pill {{ background: rgba(56,189,248,0.15); border: 1px solid #0284c7; color: #38bdf8; padding: 4px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; }}
+        .curr-pill {{ background: #0c1527; border: 1px solid #1e293b; color: #ffffff; padding: 8px 14px; border-radius: 10px; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px; }}
+        
+        .swap-divider-btn {{ width: 40px; height: 40px; border-radius: 50%; background: #131b2e; border: 1px solid #1e293b; color: #38bdf8; display: flex; justify-content: center; align-items: center; font-size: 16px; margin: -6px auto; cursor: pointer; position: relative; z-index: 2; transition: 0.2s; }}
+        .swap-divider-btn:hover {{ transform: rotate(180deg); background: #0284c7; color: white; }}
+
+        .calc-breakdown {{ padding: 16px 4px; border-top: 1px solid #16233b; margin-top: 14px; }}
+        .breakdown-row {{ display: flex; justify-content: space-between; font-size: 12px; color: #94a3b8; margin-bottom: 8px; }}
 
         /* Modal Styles */
         .modal {{ display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(6,11,20,0.92); justify-content: center; align-items: center; z-index: 100; padding: 16px; }}
@@ -385,7 +400,7 @@ def get_html():
             </div>
         </div>
 
-        <!-- TAB 2: BOT Wallet View (Creddx UI - Deposit, Withdraw, Conversion, History) -->
+        <!-- TAB 2: BOT Wallet View (Creddx UI - Deposit, Withdraw, Exact Conversion, History) -->
         <div id="viewBotWallet" style="display: none;">
             <!-- Wallet Overview Card -->
             <div class="card-position" style="padding: 22px 24px; margin-bottom: 20px;">
@@ -400,21 +415,21 @@ def get_html():
                     <div style="background: #0284c7; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px;">U</div>
                     <div>
                         <div style="font-size: 11px; color: #64748b; font-weight: 700;">USDT</div>
-                        <div style="font-size: 17px; font-weight: 800; color: #38bdf8;">{balance:.2f}</div>
+                        <div style="font-size: 17px; font-weight: 800; color: #38bdf8;" id="walletUsdtBalDisplay">{balance:.2f}</div>
                     </div>
                 </div>
             </div>
 
             <!-- Action Pills Bar (DEPOSIT, WITHDRAW, CONVERSION, HISTORY - NO SEND) -->
             <div class="wallet-actions-bar">
-                <button id="pillDeposit" class="wallet-action-pill active" onclick="switchWalletTab('deposit')">↙ DEPOSIT • INR ▾</button>
+                <button id="pillDeposit" class="wallet-action-pill" onclick="switchWalletTab('deposit')">↙ DEPOSIT • INR ▾</button>
                 <button id="pillWithdraw" class="wallet-action-pill" onclick="switchWalletTab('withdraw')">↗ WITHDRAW ▾</button>
-                <button id="pillConversion" class="wallet-action-pill" onclick="switchWalletTab('conversion')">⇄ CONVERSION</button>
+                <button id="pillConversion" class="wallet-action-pill active" onclick="switchWalletTab('conversion')">⇄ CONVERSION</button>
                 <button id="pillHistory" class="wallet-action-pill" onclick="switchWalletTab('history')">⏱ HISTORY</button>
             </div>
 
             <!-- Sub-tab 1: Deposit INR -->
-            <div id="walletSubDeposit">
+            <div id="walletSubDeposit" style="display: none;">
                 <div class="step-indicator">
                     <span class="step-circle">1</span> <span>PAYMENT DETAILS</span> ────── <span class="step-circle" style="background:#1e293b; color:#94a3b8;">2</span> <span>SUBMIT PROOF</span>
                 </div>
@@ -425,15 +440,10 @@ def get_html():
                 </p>
 
                 <div class="notice-box">
-                    ⚠️ For smooth and fast approval, please transfer funds only from the bank account used during your KYC verification. Payments made from third-party accounts may attract additional verification charges or could be delayed.
+                    ⚠️ For smooth and fast approval, please transfer funds only from the bank account used during your KYC verification.
                 </div>
 
-                <!-- UPI / QR Payment Card -->
                 <div class="payment-method-card">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                        <strong style="color: #38bdf8; font-size: 15px;">⚡ Instant UPI Transfer</strong>
-                        <span style="background: #064e3b; color: #34d399; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 6px;">FASTEST</span>
-                    </div>
                     <div style="text-align: center; margin: 12px 0;">
                         <div style="background: white; padding: 8px; border-radius: 12px; display: inline-block;">
                             <img src="{qr_image_url}" alt="UPI QR Code" style="width: 160px; height: 160px; display: block;">
@@ -459,15 +469,79 @@ def get_html():
                 </div>
             </div>
 
-            <!-- Sub-tab 3: Conversion (USDT <-> INR) -->
-            <div id="walletSubConversion" style="display: none;">
-                <h2 style="font-size: 22px; font-weight: 800; color: #ffffff; margin-bottom: 6px;">Instant Currency Conversion</h2>
-                <p style="font-size: 12px; color: #94a3b8; margin-bottom: 18px;">Convert between Indian Rupee (INR) and Tether (USDT) at live market rates.</p>
-                <div class="payment-method-card" style="text-align: center;">
-                    <div style="font-size: 13px; color: #38bdf8; margin-bottom: 16px; font-weight: 700;">1 USDT = ₹{USDT_INR_RATE} INR</div>
-                    <input id="convertInput" type="number" class="input-box" placeholder="Enter USDT amount (e.g. 100)" oninput="calcConversion(this.value)">
-                    <div style="margin: 10px 0; font-size: 15px; font-weight: 800; color: #34d399;">You receive: ₹<span id="convertResult">0.00</span> INR</div>
-                    <button class="btn-action" onclick="alert('Conversion executed successfully!')">Instant Swap</button>
+            <!-- Sub-tab 3: EXACT Conversion (INR <-> USDT) UI from Screenshot -->
+            <div id="walletSubConversion">
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 6px;">
+                    <div style="background: #064e3b; border: 1px solid #059669; width: 36px; height: 36px; border-radius: 10px; display: flex; justify-content: center; align-items: center; font-size: 18px;">🤖</div>
+                    <div>
+                        <h2 style="font-size: 22px; font-weight: 800; color: #ffffff;">Conversion (INR ↔ USDT)</h2>
+                        <p style="font-size: 12px; color: #94a3b8;">Convert between your INR and USDT balance instantly.</p>
+                    </div>
+                </div>
+
+                <div class="notice-box" style="margin: 16px 0 20px;">
+                    Convert between INR and USDT instantly at real-time market rates. No trading fees are applied. Final value may vary slightly depending on market movement.
+                </div>
+
+                <div class="payment-method-card" style="padding: 24px;">
+                    <!-- From Box -->
+                    <div class="swap-box">
+                        <div class="swap-label-row">
+                            <span>From</span>
+                            <span>Available: <span id="fromAvailableDisplay">{balance:.4f} USDT</span></span>
+                        </div>
+                        <div class="swap-input-row">
+                            <input id="fromAmountInput" type="number" class="swap-input" placeholder="0.00" value="0.00" oninput="handleSwapCalculate()">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span class="max-pill" onclick="handleMaxClick()">Max</span>
+                                <div class="curr-pill" id="fromCurrPill">USDT ▾</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Swap Switch Button -->
+                    <button class="swap-divider-btn" onclick="toggleSwapDirection()" title="Swap Currencies">⇅</button>
+
+                    <!-- To Box -->
+                    <div class="swap-box">
+                        <div class="swap-label-row">
+                            <span>To</span>
+                            <span>Available: <span id="toAvailableDisplay">₹ {inr_balance:.4f} INR</span></span>
+                        </div>
+                        <div class="swap-input-row">
+                            <input id="toAmountInput" type="text" class="swap-input" placeholder="0" value="0" readonly>
+                            <div class="curr-pill" id="toCurrPill">INR ▾</div>
+                        </div>
+                    </div>
+
+                    <!-- Breakdown & Live Rate -->
+                    <div class="calc-breakdown">
+                        <div class="breakdown-row">
+                            <span><span id="rateDirectionLabel">USDT → INR</span> <span style="background:#064e3b; color:#34d399; font-size:10px; padding:2px 6px; border-radius:4px; margin-left:4px;">● Live</span></span>
+                            <strong style="color: #f8fafc;" id="liveRateText">1 USDT ≈ {USDT_INR_RATE:.4f} INR</strong>
+                        </div>
+                        <div class="breakdown-row">
+                            <span>Conversion Fee</span>
+                            <span style="color: #34d399; font-weight:700;">0%</span>
+                        </div>
+                        <div class="breakdown-row">
+                            <span>TDS</span>
+                            <span style="color: #34d399; font-weight:700;">0%</span>
+                        </div>
+                        <div class="breakdown-row">
+                            <span>Price Type</span>
+                            <span style="color: #94a3b8;">Real-time market price</span>
+                        </div>
+                        <div class="breakdown-row" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #16233b;">
+                            <span style="font-weight: 700; color: #f8fafc;">You will receive</span>
+                            <strong style="color: #38bdf8; font-size: 16px;" id="receiveSummaryText">0 INR</strong>
+                        </div>
+                    </div>
+
+                    <button class="btn-action" style="background: linear-gradient(90deg, #10b981, #059669); margin-top: 14px; padding: 14px; font-size: 16px;" onclick="executeConversion()">Convert</button>
+                    <p style="font-size: 11px; color: #64748b; text-align: center; margin-top: 10px;">
+                        Conversion happens instantly at current market rate. Final value may slightly vary.
+                    </p>
                 </div>
             </div>
 
@@ -487,7 +561,6 @@ def get_html():
                 </p>
             </div>
 
-            <!-- Summary of Real Investment & Withdrawal -->
             <div class="overview-summary">
                 <div>
                     <div class="summary-label">Total Bot Investment</div>
@@ -499,7 +572,6 @@ def get_html():
                 </div>
             </div>
 
-            <!-- Transaction History List -->
             <div id="walletActivityList">
                 {wallet_html}
             </div>
@@ -534,6 +606,11 @@ def get_html():
     </div>
 
     <script>
+        const CURRENT_RATE = {USDT_INR_RATE};
+        let currentUsdtBal = {balance};
+        let currentInrBal = {inr_balance};
+        let swapDirection = 'USDT_TO_INR'; // or 'INR_TO_USDT'
+
         window.addEventListener('DOMContentLoaded', () => {{
             const saved = localStorage.getItem('cryptobot_user_email');
             if (saved) {{
@@ -556,6 +633,7 @@ def get_html():
             if (tab === 'botWallet') {{
                 document.getElementById('viewBotWallet').style.display = 'block';
                 document.getElementById('navBotWallet').classList.add('active');
+                switchWalletTab('conversion');
             }} else if (tab === 'overview') {{
                 document.getElementById('viewOverview').style.display = 'block';
                 document.getElementById('navOverview').classList.add('active');
@@ -579,22 +657,74 @@ def get_html():
             if (subTab === 'withdraw') {{
                 document.getElementById('walletSubWithdraw').style.display = 'block';
                 document.getElementById('pillWithdraw').classList.add('active');
-            }} else if (subTab === 'conversion') {{
-                document.getElementById('walletSubConversion').style.display = 'block';
-                document.getElementById('pillConversion').classList.add('active');
+            }} else if (subTab === 'deposit') {{
+                document.getElementById('walletSubDeposit').style.display = 'block';
+                document.getElementById('pillDeposit').classList.add('active');
             }} else if (subTab === 'history') {{
                 document.getElementById('walletSubHistory').style.display = 'block';
                 document.getElementById('pillHistory').classList.add('active');
             }} else {{
-                document.getElementById('walletSubDeposit').style.display = 'block';
-                document.getElementById('pillDeposit').classList.add('active');
+                document.getElementById('walletSubConversion').style.display = 'block';
+                document.getElementById('pillConversion').classList.add('active');
             }}
         }}
 
-        function calcConversion(val) {{
-            const rate = {USDT_INR_RATE};
-            const res = (parseFloat(val) || 0) * rate;
-            document.getElementById('convertResult').innerText = res.toFixed(2);
+        function handleSwapCalculate() {{
+            const val = parseFloat(document.getElementById('fromAmountInput').value) || 0;
+            if (swapDirection === 'USDT_TO_INR') {{
+                const res = val * CURRENT_RATE;
+                document.getElementById('toAmountInput').value = res.toFixed(2);
+                document.getElementById('receiveSummaryText').innerText = res.toFixed(2) + ' INR';
+            }} else {{
+                const res = val / CURRENT_RATE;
+                document.getElementById('toAmountInput').value = res.toFixed(4);
+                document.getElementById('receiveSummaryText').innerText = res.toFixed(4) + ' USDT';
+            }}
+        }}
+
+        function handleMaxClick() {{
+            if (swapDirection === 'USDT_TO_INR') {{
+                document.getElementById('fromAmountInput').value = currentUsdtBal.toFixed(2);
+            }} else {{
+                document.getElementById('fromAmountInput').value = currentInrBal.toFixed(2);
+            }}
+            handleSwapCalculate();
+        }}
+
+        function toggleSwapDirection() {{
+            if (swapDirection === 'USDT_TO_INR') {{
+                swapDirection = 'INR_TO_USDT';
+                document.getElementById('fromCurrPill').innerText = 'INR ▾';
+                document.getElementById('toCurrPill').innerText = 'USDT ▾';
+                document.getElementById('fromAvailableDisplay').innerText = '₹ ' + currentInrBal.toFixed(2) + ' INR';
+                document.getElementById('toAvailableDisplay').innerText = currentUsdtBal.toFixed(4) + ' USDT';
+                document.getElementById('rateDirectionLabel').innerText = 'INR → USDT';
+                document.getElementById('liveRateText').innerText = '1 USDT ≈ ' + CURRENT_RATE.toFixed(4) + ' INR';
+            }} else {{
+                swapDirection = 'USDT_TO_INR';
+                document.getElementById('fromCurrPill').innerText = 'USDT ▾';
+                document.getElementById('toCurrPill').innerText = 'INR ▾';
+                document.getElementById('fromAvailableDisplay').innerText = currentUsdtBal.toFixed(4) + ' USDT';
+                document.getElementById('toAvailableDisplay').innerText = '₹ ' + currentInrBal.toFixed(2) + ' INR';
+                document.getElementById('rateDirectionLabel').innerText = 'USDT → INR';
+                document.getElementById('liveRateText').innerText = '1 USDT ≈ ' + CURRENT_RATE.toFixed(4) + ' INR';
+            }}
+            document.getElementById('fromAmountInput').value = '0.00';
+            document.getElementById('toAmountInput').value = '0';
+            document.getElementById('receiveSummaryText').innerText = '0 ' + (swapDirection === 'USDT_TO_INR' ? 'INR' : 'USDT');
+        }}
+
+        async function executeConversion() {{
+            const val = parseFloat(document.getElementById('fromAmountInput').value) || 0;
+            if (val <= 0) {{ alert('Please enter an amount to convert!'); return; }}
+            const res = await fetch('/api/convert', {{
+                method: 'POST',
+                headers: {{ 'Content-Type': 'application/json' }},
+                body: JSON.stringify({{ amount: val, direction: swapDirection }})
+            }});
+            const data = await res.json();
+            alert(data.message);
+            window.location.reload();
         }}
 
         function switchAuthTab(tab) {{
@@ -758,6 +888,49 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 }
                 save_db(db)
                 res = {"status": "success", "message": "Account created successfully!"}
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode('utf-8'))
+
+        elif self.path == '/api/convert':
+            amount = float(payload.get('amount', 0.0))
+            direction = payload.get('direction', 'USDT_TO_INR')
+            db = load_db()
+            
+            if direction == 'USDT_TO_INR':
+                if db['balance'] < amount:
+                    res = {"status": "error", "message": "Insufficient USDT balance!"}
+                else:
+                    inr_received = amount * USDT_INR_RATE
+                    db['balance'] -= amount
+                    db['inr_balance'] = db.get('inr_balance', 0.0) + inr_received
+                    db.setdefault("wallet_activity", []).insert(0, {
+                        "date": datetime.now().strftime("%d %b %Y"),
+                        "time": datetime.now().strftime("%I:%M %p").lower(),
+                        "type": f"Converted {amount:.2f} USDT to INR",
+                        "amount": -amount,
+                        "status": "Completed"
+                    })
+                    save_db(db)
+                    res = {"status": "success", "message": f"🎉 Converted {amount:.2f} USDT into ₹{inr_received:.2f} INR successfully!"}
+            else:
+                if db.get('inr_balance', 0.0) < amount:
+                    res = {"status": "error", "message": "Insufficient INR balance!"}
+                else:
+                    usdt_received = amount / USDT_INR_RATE
+                    db['inr_balance'] -= amount
+                    db['balance'] += usdt_received
+                    db.setdefault("wallet_activity", []).insert(0, {
+                        "date": datetime.now().strftime("%d %b %Y"),
+                        "time": datetime.now().strftime("%I:%M %p").lower(),
+                        "type": f"Converted ₹{amount:.2f} INR to USDT",
+                        "amount": usdt_received,
+                        "status": "Completed"
+                    })
+                    save_db(db)
+                    res = {"status": "success", "message": f"🎉 Converted ₹{amount:.2f} INR into {usdt_received:.2f} USDT successfully!"}
+
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
