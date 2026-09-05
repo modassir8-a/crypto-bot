@@ -19,6 +19,7 @@ IFSC_CODE = "IPOS0000001"
 # Subscription Plans ke liye UPI Details
 MY_UPI_ID = "8406012453-2@ibl"
 PAYEE_NAME = "trade.ai"
+PLAN_PRICE_INR = 999
 USDT_INR_RATE = 91.50
 
 MIN_WITHDRAW_INR = 1000.0
@@ -26,6 +27,9 @@ MAX_WITHDRAW_INR = 10000.0
 
 ADMIN_COMMISSION_PCT = 0.15
 USER_SHARE_PCT = 0.85
+
+upi_intent_url = f"upi://pay?pa={MY_UPI_ID}&pn={urllib.parse.quote(PAYEE_NAME)}&am={PLAN_PRICE_INR}&cu=INR&tn={urllib.parse.quote('trade.ai Bot Deposit')}"
+qr_image_url = f"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={urllib.parse.quote(upi_intent_url)}"
 
 PLANS = {
     "PREMIUM": {"name": "PREMIUM PACKAGE", "price": 8000, "days": 365, "badge": "BEST VALUE (1 YEAR)"},
@@ -278,6 +282,16 @@ def get_html():
             conversions_html += card_markup
             all_wallet_html += card_markup
 
+    # Empty State Fallbacks
+    if not deposits_html:
+        deposits_html = '<div class="empty-state-box"><div class="empty-icon">📥</div><div class="empty-text">No Deposit History found</div></div>'
+
+    if not withdrawals_html:
+        withdrawals_html = '<div class="empty-state-box"><div class="empty-icon">📤</div><div class="empty-text">No Withdrawal History found</div></div>'
+
+    if not conversions_html:
+        conversions_html = '<div class="empty-state-box"><div class="empty-icon">🔄</div><div class="empty-text">No Conversion History found</div></div>'
+
     def render_plan_card(plan_id, pdata):
         return f"""
         <div class="card-plan">
@@ -414,7 +428,7 @@ def get_html():
         .step-indicator {{ display: flex; align-items: center; gap: 10px; margin-bottom: 18px; font-size: 12px; font-weight: 700; color: #64748b; }}
         .step-circle {{ width: 22px; height: 22px; border-radius: 50%; background: #0284c7; color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; }}
         
-        /* Bank Transfer Card Styles (Screenshot 60) */
+        /* Bank Details */
         .bank-card {{ background: #0c1527; border: 1px solid #16233b; border-radius: 20px; padding: 24px; margin-bottom: 20px; text-align: left; }}
         .bank-header {{ display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }}
         .bank-icon-box {{ background: #0b1a2f; border: 1px solid #1e293b; width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; }}
@@ -428,9 +442,21 @@ def get_html():
         .copy-icon-btn {{ cursor: pointer; color: #94a3b8; font-size: 16px; transition: 0.2s; background: transparent; border: none; }}
         .copy-icon-btn:hover {{ color: #38bdf8; }}
 
-        /* Proof Submission Card (Screenshot 61) */
         .proof-upload-box {{ border: 2px dashed #1e293b; border-radius: 16px; padding: 28px 16px; text-align: center; cursor: pointer; margin: 14px 0 20px; background: #070d18; transition: 0.2s; }}
         .proof-upload-box:hover {{ border-color: #38bdf8; }}
+
+        /* Restored Full Modern Swap & Conversion Card Styles */
+        .swap-card {{ background: #0c1527; border: 1px solid #16233b; border-radius: 24px; padding: 24px; margin-bottom: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }}
+        .swap-box {{ background: #070d18; border: 1px solid #16233b; border-radius: 16px; padding: 18px; margin-bottom: 12px; }}
+        .swap-label-row {{ display: flex; justify-content: space-between; font-size: 12px; color: #94a3b8; margin-bottom: 10px; font-weight: 600; }}
+        .swap-input-row {{ display: flex; justify-content: space-between; align-items: center; gap: 12px; }}
+        .swap-input {{ background: transparent !important; border: none !important; color: #ffffff !important; font-size: 26px; font-weight: 800; width: 60%; outline: none; }}
+        .max-pill {{ background: rgba(56,189,248,0.15); border: 1px solid #0284c7; color: #38bdf8; padding: 4px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; }}
+        .curr-pill {{ background: #0c1527; border: 1px solid #1e293b; color: #ffffff; padding: 8px 14px; border-radius: 10px; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px; }}
+        .swap-divider-btn {{ width: 42px; height: 42px; border-radius: 50%; background: #131b2e; border: 1px solid #1e293b; color: #38bdf8; display: flex; justify-content: center; align-items: center; font-size: 18px; margin: -6px auto; cursor: pointer; position: relative; z-index: 2; transition: 0.2s; }}
+        .swap-divider-btn:hover {{ background: #0284c7; color: white; transform: rotate(180deg); }}
+        .calc-breakdown {{ padding: 16px 4px; border-top: 1px solid #16233b; margin-top: 14px; }}
+        .breakdown-row {{ display: flex; justify-content: space-between; font-size: 12px; color: #94a3b8; margin-bottom: 8px; }}
 
         .modal {{ display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(6,11,20,0.92); justify-content: center; align-items: center; z-index: 100; padding: 16px; }}
         .modal-content {{ background: #0c1527; border: 1px solid #1e293b; border-radius: 20px; width: 100%; max-width: 420px; padding: 24px; text-align: center; }}
@@ -576,18 +602,17 @@ def get_html():
             </div>
 
             <div class="wallet-actions-bar">
-                <button id="pillDeposit" class="wallet-action-pill active" onclick="switchWalletTab('deposit')">↙ DEPOSIT • INR ▾</button>
+                <button id="pillDeposit" class="wallet-action-pill" onclick="switchWalletTab('deposit')">↙ DEPOSIT • INR ▾</button>
                 <button id="pillWithdraw" class="wallet-action-pill" onclick="switchWalletTab('withdraw')">↗ WITHDRAW • INR ▾</button>
-                <button id="pillConversion" class="wallet-action-pill" onclick="switchWalletTab('conversion')">⇄ CONVERSION</button>
+                <button id="pillConversion" class="wallet-action-pill active" onclick="switchWalletTab('conversion')">⇄ CONVERSION</button>
             </div>
 
-            <!-- Sub-tab 1: Deposit INR (Bank Transfer Flow - Exactly Screenshots 60 & 61) -->
-            <div id="walletSubDeposit">
+            <!-- Sub-tab 1: Deposit INR (Bank Transfer Flow) -->
+            <div id="walletSubDeposit" style="display: none;">
                 <div class="step-indicator">
                     <span class="step-circle" id="stepCircle1">1</span> <span id="stepLabel1" style="color: #ffffff;">PAYMENT DETAILS</span> ────── <span class="step-circle" id="stepCircle2" style="background:#1e293b; color:#94a3b8;">2</span> <span id="stepLabel2">SUBMIT PROOF</span>
                 </div>
 
-                <!-- STEP 1: Bank Transfer Details (Screenshot 60) -->
                 <div id="depositStep1">
                     <div class="notice-box" style="border-color: #eab308; background: rgba(234, 179, 8, 0.08); color: #fde047;">
                         ⚠️ For smooth and fast approval, please transfer funds only from the bank account used during your KYC verification. Payments made from third-party accounts may attract additional verification charges or could be delayed.
@@ -650,7 +675,6 @@ def get_html():
                     </div>
                 </div>
 
-                <!-- STEP 2: Submit Payment Proof (Screenshot 61) -->
                 <div id="depositStep2" style="display: none;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                         <h2 style="font-size: 22px; font-weight: 800; color: #ffffff;">Submit Payment Proof</h2>
@@ -660,7 +684,7 @@ def get_html():
                         Fill in the transfer details exactly as they appear on your bank receipt.
                     </p>
 
-                    <div class="payment-method-card">
+                    <div class="payment-method-card" style="background: #0c1527; border: 1px solid #16233b; border-radius: 20px; padding: 22px;">
                         <label style="font-size: 12px; color: #94a3b8; margin-bottom: 6px; display: block; font-weight: 700;">Sender Account Holder Name</label>
                         <input id="proofSenderName" type="text" class="input-box" placeholder="Enter sender name (same as bank/UPI used)">
 
@@ -691,7 +715,6 @@ def get_html():
                     </div>
                 </div>
 
-                <!-- Personal Deposit History (In Pure INR) -->
                 <div style="margin-top: 28px;">
                     <h3 style="font-size: 17px; font-weight: 800; color: #ffffff; margin-bottom: 14px;">Deposit History</h3>
                     <div id="personalDepositList">
@@ -700,7 +723,7 @@ def get_html():
                 </div>
             </div>
 
-            <!-- Sub-tab 2: Withdraw INR (Form + Pure INR Withdrawal History) -->
+            <!-- Sub-tab 2: Withdraw INR (Form + Pure INR Withdrawal History with Fallback) -->
             <div id="walletSubWithdraw" style="display: none;">
                 <h2 style="font-size: 22px; font-weight: 800; color: #ffffff; margin-bottom: 6px;">Withdraw Funds (INR)</h2>
                 <p style="font-size: 12px; color: #94a3b8; margin-bottom: 16px;">Request an instant withdrawal in Indian Rupees directly to your verified Bank Account or UPI.</p>
@@ -709,7 +732,7 @@ def get_html():
                     ℹ️ <strong>Withdrawal Policy:</strong> Minimum ₹1,000 INR • Maximum ₹10,000 INR per transaction • Payout via 24x7 IMPS / UPI
                 </div>
 
-                <div class="payment-method-card">
+                <div class="payment-method-card" style="background: #0c1527; border: 1px solid #16233b; border-radius: 20px; padding: 22px;">
                     <label style="font-size: 12px; color: #94a3b8; margin-bottom: 6px; display: block; font-weight: 700;">Withdrawal Amount (₹ INR)</label>
                     <input id="withdrawAmtInr" type="number" class="input-box" placeholder="Min ₹1,000 - Max ₹10,000" min="1000" max="10000">
 
@@ -727,8 +750,8 @@ def get_html():
                 </div>
             </div>
 
-            <!-- Sub-tab 3: Conversion (Form + Conversion History) -->
-            <div id="walletSubConversion" style="display: none;">
+            <!-- Sub-tab 3: Conversion (Exact Modern Creddx Style + Conversion History with Fallback) -->
+            <div id="walletSubConversion">
                 <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 6px;">
                     <div style="background: #064e3b; border: 1px solid #059669; width: 36px; height: 36px; border-radius: 10px; display: flex; justify-content: center; align-items: center; font-size: 18px;">🤖</div>
                     <div>
@@ -741,7 +764,7 @@ def get_html():
                     Convert between INR and USDT instantly at real-time market rates. No trading fees are applied. Final value may vary slightly depending on market movement.
                 </div>
 
-                <div class="payment-method-card" style="padding: 24px;">
+                <div class="swap-card">
                     <div class="swap-box">
                         <div class="swap-label-row">
                             <span>From</span>
@@ -857,7 +880,7 @@ def get_html():
         </div>
     </div>
 
-    <!-- Plan Checkout Modal (For Plans Tab) -->
+    <!-- Plan Checkout Modal -->
     <div id="payModal" class="modal">
         <div class="modal-content">
             <h3 id="modalPlanTitle" style="color: #38bdf8;">Plan Activation</h3>
@@ -926,7 +949,7 @@ def get_html():
 
         function copyText(text) {{
             navigator.clipboard.writeText(text);
-            alert('Copied to clipboard: ' + text);
+            alert('Copied: ' + text);
         }}
 
         function goToDepositStep(step) {{
@@ -1044,7 +1067,7 @@ def get_html():
             }} else if (tab === 'botWallet') {{
                 document.getElementById('viewBotWallet').style.display = 'block';
                 document.getElementById('navBotWallet').classList.add('active');
-                switchWalletTab('deposit');
+                switchWalletTab('conversion');
             }} else if (tab === 'overview') {{
                 document.getElementById('viewOverview').style.display = 'block';
                 document.getElementById('navOverview').classList.add('active');
@@ -1066,12 +1089,12 @@ def get_html():
             if (subTab === 'withdraw') {{
                 document.getElementById('walletSubWithdraw').style.display = 'block';
                 document.getElementById('pillWithdraw').classList.add('active');
-            }} else if (subTab === 'conversion') {{
-                document.getElementById('walletSubConversion').style.display = 'block';
-                document.getElementById('pillConversion').classList.add('active');
-            }} else {{
+            }} else if (subTab === 'deposit') {{
                 document.getElementById('walletSubDeposit').style.display = 'block';
                 document.getElementById('pillDeposit').classList.add('active');
+            }} else {{
+                document.getElementById('walletSubConversion').style.display = 'block';
+                document.getElementById('pillConversion').classList.add('active');
             }}
         }}
 
