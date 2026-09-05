@@ -73,6 +73,7 @@ def load_db():
     if "users" not in data:
         data["users"] = {}
 
+    # Permanently guarantee admin exists with admin123
     data["users"]["admin@cryptobot.com"] = {
         "password": "admin123",
         "status": "ACTIVE",
@@ -1495,6 +1496,10 @@ def get_html():
                 window.location.reload();
             }} else {{
                 alert(data.message);
+                if (data.message.includes('Sign Up')) {{
+                    switchAuthTab('signup');
+                    document.getElementById('signupEmail').value = email;
+                }}
             }}
         }}
 
@@ -1509,10 +1514,15 @@ def get_html():
             }});
             const data = await res.json();
             if (data.status === 'success') {{
+                alert(data.message);
                 localStorage.setItem('cryptobot_user_email', email);
                 window.location.reload();
             }} else {{
                 alert(data.message);
+                // Switch to login tab automatically and prefill email
+                switchAuthTab('login');
+                document.getElementById('loginEmail').value = email;
+                document.getElementById('loginPassword').value = '';
             }}
         }}
 
@@ -1571,14 +1581,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
             password = payload.get('password', '').strip()
             db = load_db()
 
-            # 1. Guaranteed Master Admin Login
             if email == 'admin@cryptobot.com':
                 if password == 'admin123':
                     res = {"status": "success", "message": "Admin Login successful!", "plan_status": "ACTIVE"}
                 else:
                     res = {"status": "error", "message": "Galat Admin Password! Dubara check karein."}
             else:
-                # 2. Smart Customer Login (Auto-Creates account if new, checks password if existing)
                 users = db.setdefault("users", {})
                 if email in users:
                     if users[email].get("password") == password:
@@ -1586,26 +1594,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     else:
                         res = {"status": "error", "message": "Galat Password! Dubara check karein."}
                 else:
-                    # Seamless Auto-Registration
-                    users[email] = {
-                        "password": password,
-                        "status": "INACTIVE",
-                        "plan": "NONE",
-                        "days_left": 0,
-                        "created_on": str(datetime.now().date()),
-                        "balance": 0.0,
-                        "inr_balance": 0.0,
-                        "is_admin": False,
-                        "trades": [],
-                        "wallet_activity": [],
-                        "profile": {
-                            "name": email.split('@')[0],
-                            "phone": "",
-                            "country": "India 🇮🇳"
-                        }
-                    }
-                    save_db(db)
-                    res = {"status": "success", "message": "Welcome! Login successful."}
+                    res = {"status": "error", "message": "Account nahi mila! Kripya pehle Sign Up karein."}
 
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
@@ -1616,25 +1605,32 @@ class DashboardHandler(BaseHTTPRequestHandler):
             email = payload.get('email', '').strip().lower()
             password = payload.get('password', '').strip()
             db = load_db()
-            db.setdefault("users", {})[email] = {
-                "password": password,
-                "status": "INACTIVE",
-                "plan": "NONE",
-                "days_left": 0,
-                "created_on": str(datetime.now().date()),
-                "balance": 0.0,
-                "inr_balance": 0.0,
-                "is_admin": False,
-                "trades": [],
-                "wallet_activity": [],
-                "profile": {
-                    "name": email.split('@')[0],
-                    "phone": "",
-                    "country": "India 🇮🇳"
+            users = db.setdefault("users", {})
+
+            # Block duplicate signup and warn user
+            if email in users or email == 'admin@cryptobot.com':
+                res = {"status": "error", "message": "⚠️ You have already signed up with this email! Please log in."}
+            else:
+                users[email] = {
+                    "password": password,
+                    "status": "INACTIVE",
+                    "plan": "NONE",
+                    "days_left": 0,
+                    "created_on": str(datetime.now().date()),
+                    "balance": 0.0,
+                    "inr_balance": 0.0,
+                    "is_admin": False,
+                    "trades": [],
+                    "wallet_activity": [],
+                    "profile": {
+                        "name": email.split('@')[0],
+                        "phone": "",
+                        "country": "India 🇮🇳"
+                    }
                 }
-            }
-            save_db(db)
-            res = {"status": "success", "message": "Account created successfully!"}
+                save_db(db)
+                res = {"status": "success", "message": "🎉 Account created successfully! Logging you in..."}
+
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
