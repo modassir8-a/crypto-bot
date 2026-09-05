@@ -11,6 +11,7 @@ DB_FILE = 'trades.json'
 coins = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT']
 exchange = ccxt.binance()
 
+# Aapki UPI Details
 MY_UPI_ID = "8406012453-2@ibl"
 PAYEE_NAME = "trade.ai"
 PLAN_PRICE_INR = 999
@@ -21,6 +22,10 @@ MAX_WITHDRAW_INR = 10000.0
 
 ADMIN_COMMISSION_PCT = 0.15
 USER_SHARE_PCT = 0.85
+
+# QR & Deep Link URLs
+upi_intent_url = f"upi://pay?pa={MY_UPI_ID}&pn={urllib.parse.quote(PAYEE_NAME)}&am={PLAN_PRICE_INR}&cu=INR&tn={urllib.parse.quote('trade.ai Bot Deposit')}"
+qr_image_url = f"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={urllib.parse.quote(upi_intent_url)}"
 
 PLANS = {
     "PREMIUM": {"name": "PREMIUM PACKAGE", "price": 8000, "days": 365, "badge": "BEST VALUE (1 YEAR)"},
@@ -400,7 +405,6 @@ def get_html():
         .summary-label {{ font-size: 11px; color: #94a3b8; font-weight: 600; text-transform: uppercase; }}
         .summary-val {{ font-size: 18px; font-weight: 800; margin-top: 4px; }}
 
-        /* 3 Options Bar */
         .wallet-actions-bar {{ display: flex; gap: 10px; margin-bottom: 24px; }}
         .wallet-action-pill {{ flex: 1; text-align: center; background: #0c1527; border: 1px solid #16233b; border-radius: 20px; padding: 10px 14px; color: #94a3b8; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; }}
         .wallet-action-pill.active {{ background: #38bdf8; color: #060b14; }}
@@ -1177,11 +1181,18 @@ def get_html():
 
 class DashboardHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        self.send_response(200)
-        self.send_header('Content-type', 'text/html; charset=utf-8')
-        self.end_headers()
-        html = get_html()
-        self.wfile.write(html.encode('utf-8'))
+        try:
+            html = get_html()
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(html.encode('utf-8'))
+        except Exception as e:
+            print("Error serving GET:", str(e))
+            self.send_response(500)
+            self.send_header('Content-type', 'text/plain')
+            self.end_headers()
+            self.wfile.write(f"Server Error: {str(e)}".encode('utf-8'))
 
     def do_POST(self):
         content_len = int(self.headers.get('Content-Length', 0))
