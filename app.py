@@ -11,7 +11,6 @@ DB_FILE = 'trades.json'
 coins = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT']
 exchange = ccxt.binance()
 
-# Aapki UPI Details
 MY_UPI_ID = "8406012453-2@ibl"
 PAYEE_NAME = "trade.ai"
 PLAN_PRICE_INR = 999
@@ -48,7 +47,6 @@ def load_db():
             if "wallet_activity" in data:
                 clean_list = []
                 for w in data["wallet_activity"]:
-                    # Sanitize old dollar investment text to pure INR
                     if "Investment" in w.get("type", "") or w.get("amount", 0) == 1000.0:
                         clean_list.append({
                             "date": w.get("date", "04 Sep 2026"),
@@ -173,7 +171,6 @@ def get_html():
     profit = balance - 1000.0
     profit_sign = "+" if profit >= 0 else ""
 
-    # Trades HTML
     trades_html = ""
     for t in reversed(data.get("trades", [])):
         c = t.get('coin', '').replace('/', '-').upper()
@@ -209,7 +206,6 @@ def get_html():
         </div>
         """
 
-    # Pure INR History Processing
     deposits_html = ""
     withdrawals_html = ""
     conversions_html = ""
@@ -404,6 +400,7 @@ def get_html():
         .summary-label {{ font-size: 11px; color: #94a3b8; font-weight: 600; text-transform: uppercase; }}
         .summary-val {{ font-size: 18px; font-weight: 800; margin-top: 4px; }}
 
+        /* 3 Options Bar */
         .wallet-actions-bar {{ display: flex; gap: 10px; margin-bottom: 24px; }}
         .wallet-action-pill {{ flex: 1; text-align: center; background: #0c1527; border: 1px solid #16233b; border-radius: 20px; padding: 10px 14px; color: #94a3b8; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; }}
         .wallet-action-pill.active {{ background: #38bdf8; color: #060b14; }}
@@ -459,7 +456,6 @@ def get_html():
         </div>
     </div>
 
-    <!-- Main Platform -->
     <div class="container" id="mainDashboard" style="display:none;">
         <div class="top-bar">
             <button class="pill-home" onclick="showTab('tradeLogs')">⚡ trade.ai</button>
@@ -548,7 +544,7 @@ def get_html():
             {plans_html}
         </div>
 
-        <!-- TAB 3: BOT Wallet View (3 Options: DEPOSIT, WITHDRAW, CONVERSION with Pure INR Histories) -->
+        <!-- TAB 3: BOT Wallet View (3 Options: DEPOSIT, WITHDRAW, CONVERSION with Personal Histories) -->
         <div id="viewBotWallet" style="display: none;">
             <div class="card-position" style="padding: 22px 24px; margin-bottom: 20px;">
                 <div class="card-glow"></div>
@@ -607,7 +603,6 @@ def get_html():
                     <div id="personalDepositList">
                         {deposits_html}
                     </div>
-                    {"" if deposits_html else '<div class="empty-state-box"><div class="empty-icon">📥</div><div class="empty-text">No Deposit History found</div></div>'}
                 </div>
             </div>
 
@@ -636,7 +631,6 @@ def get_html():
                     <div id="personalWithdrawList">
                         {withdrawals_html}
                     </div>
-                    {"" if withdrawals_html else '<div class="empty-state-box"><div class="empty-icon">📤</div><div class="empty-text">No Withdrawal History found</div></div>'}
                 </div>
             </div>
 
@@ -714,7 +708,6 @@ def get_html():
                     <div id="personalConversionList">
                         {conversions_html}
                     </div>
-                    {"" if conversions_html else '<div class="empty-state-box"><div class="empty-icon">🔄</div><div class="empty-text">No Conversion History found</div></div>'}
                 </div>
             </div>
         </div>
@@ -1384,6 +1377,13 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.send_header('Content-type', 'application/json')
             self.end_headers()
             self.wfile.write(json.dumps(res).encode('utf-8'))
+
+        elif self.path == '/run-bot':
+            result = execute_bot_scan(source="Manual")
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(result).encode('utf-8'))
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
