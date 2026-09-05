@@ -23,7 +23,7 @@ PLAN_PRICE_INR = 999
 USDT_INR_RATE = 91.50
 
 MIN_WITHDRAW_INR = 1000.0
-MAX_WITHDRAW_INR = 10000.0
+MAX_WITHDRAW_INR = 50000.0
 
 ADMIN_COMMISSION_PCT = 0.15
 USER_SHARE_PCT = 0.85
@@ -32,9 +32,9 @@ upi_intent_url = f"upi://pay?pa={MY_UPI_ID}&pn={urllib.parse.quote(PAYEE_NAME)}&
 qr_image_url = f"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={urllib.parse.quote(upi_intent_url)}"
 
 PLANS = {
-    "PREMIUM": {"name": "PREMIUM PACKAGE", "price": 8000, "days": 365, "badge": "BEST VALUE (1 YEAR)"},
+    "PREMIUM": {"name": "PREMIUM PACKAGE", "price": 7999, "days": 365, "badge": "BEST VALUE (1 YEAR)"},
     "STANDARD": {"name": "STANDARD PACKAGE", "price": 999, "days": 30, "badge": "MOST POPULAR"},
-    "BASE": {"name": "BASE PACKAGE", "price": 400, "days": 10, "badge": "STARTER TRIAL"}
+    "BASE": {"name": "BASE PACKAGE", "price": 399, "days": 10, "badge": "STARTER TRIAL"}
 }
 
 autopilot_state = {
