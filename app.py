@@ -22,7 +22,6 @@ MAX_WITHDRAW_INR = 10000.0
 ADMIN_COMMISSION_PCT = 0.15
 USER_SHARE_PCT = 0.85
 
-# Pricing Plans
 PLANS = {
     "PREMIUM": {"name": "PREMIUM PACKAGE", "price": 8000, "days": 365, "badge": "BEST VALUE (1 YEAR)"},
     "STANDARD": {"name": "STANDARD PACKAGE", "price": 999, "days": 30, "badge": "MOST POPULAR"},
@@ -38,7 +37,7 @@ autopilot_state = {
 def load_db():
     default_expiry = (datetime.now() + timedelta(days=30)).strftime("%d %b %Y")
     real_initial_activity = [
-        {"date": "04 Sep 2026", "time": "09:00 pm", "type": "Initial Bot Investment", "amount": 1000.0, "status": "Completed"}
+        {"date": "04 Sep 2026", "time": "09:00 pm", "type": "Initial Bot Investment", "category": "DEPOSIT", "amount": 1000.0, "status": "Completed"}
     ]
     if os.path.exists(DB_FILE):
         with open(DB_FILE, 'r') as f:
@@ -199,24 +198,27 @@ def get_html():
         </div>
         """
 
-    if not trades_html:
-        trades_html = "<div id='emptyTradesMsg' style='text-align: center; color: #64748b; padding: 24px;'>No realized trade history yet.</div>"
-
     wallet_html = ""
     total_invested = 0.0
     total_withdrawn = 0.0
+    has_deposits = False
+    has_withdrawals = False
+
     for w in data.get("wallet_activity", []):
         amt = w.get("amount", 0.0)
+        cat = "DEPOSIT" if amt >= 0 else "WITHDRAWAL"
         if amt >= 0:
             total_invested += amt
+            has_deposits = True
         else:
             total_withdrawn += abs(amt)
+            has_withdrawals = True
 
         amt_str = f"+${amt:.2f}" if amt >= 0 else f"-${abs(amt):.2f}"
         amt_color = "#34d399" if amt >= 0 else "#ef4444"
         type_color = "#38bdf8" if amt >= 0 else "#f87171"
         wallet_html += f"""
-        <div class="wallet-card">
+        <div class="wallet-card" data-cat="{cat}">
             <div>
                 <div style="font-size: 13px; color: #f8fafc; font-weight: 600;">{w.get('date', '')}</div>
                 <div style="font-size: 11px; color: #71717a; margin-top: 2px;">{w.get('time', '')}</div>
@@ -229,7 +231,6 @@ def get_html():
         </div>
         """
 
-    # Generate Plan Cards HTML
     def render_plan_card(plan_id, pdata):
         return f"""
         <div class="card-plan">
@@ -286,7 +287,6 @@ def get_html():
         """
 
     plans_html = ""
-    # Render order: Premium (Top), Standard (Middle), Base (Bottom)
     plans_html += render_plan_card("PREMIUM", PLANS["PREMIUM"])
     plans_html += render_plan_card("STANDARD", PLANS["STANDARD"])
     plans_html += render_plan_card("BASE", PLANS["BASE"])
@@ -336,7 +336,11 @@ def get_html():
         .btn-view-split {{ background: #bef264; color: #000000; border: none; border-radius: 8px; padding: 6px 18px; font-size: 13px; font-weight: 800; cursor: pointer; transition: 0.2s; }}
         .btn-view-split:hover {{ opacity: 0.9; }}
 
-        /* Plans Card Styles (Matching Creddx UI) */
+        /* Empty State Graphic Container */
+        .empty-state-box {{ text-align: center; padding: 46px 20px; border: 1px dashed #16233b; border-radius: 20px; margin-top: 10px; background: rgba(12, 21, 39, 0.4); }}
+        .empty-icon {{ font-size: 42px; margin-bottom: 12px; opacity: 0.85; }}
+        .empty-text {{ color: #94a3b8; font-size: 15px; font-weight: 600; letter-spacing: 0.3px; }}
+
         .card-plan {{ background: #0c1527; border: 1px solid #16233b; border-radius: 24px; padding: 26px 24px; margin-bottom: 24px; position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.4); }}
         .plan-sub-title {{ font-size: 11px; font-weight: 800; letter-spacing: 0.8px; color: #94a3b8; text-transform: uppercase; margin-bottom: 4px; }}
         .plan-price-title {{ font-size: 30px; font-weight: 900; color: #ffffff; }}
@@ -482,10 +486,16 @@ def get_html():
                 <div id="tradesListContainer">
                     {trades_html}
                 </div>
+
+                <!-- Empty State for Trade History (Matching Screenshot 51) -->
+                <div id="emptyTradesState" class="empty-state-box" style="display: none;">
+                    <div class="empty-icon">📂🔍</div>
+                    <div class="empty-text">No Trade History found</div>
+                </div>
             </div>
         </div>
 
-        <!-- TAB 2: Plans View (Matching Screenshot: Premium 8k, Standard 999, Base 400) -->
+        <!-- TAB 2: Plans View -->
         <div id="viewPlans" style="display: none;">
             <div style="margin-bottom: 22px; text-align: center;">
                 <h2 style="font-size: 24px; font-weight: 800; color: #ffffff; margin-bottom: 6px;">Choose Your Trading Plan</h2>
@@ -640,10 +650,28 @@ def get_html():
                 </div>
             </div>
 
-            <!-- Sub-tab 4: History -->
+            <!-- Sub-tab 4: History (With Filters and Empty States) -->
             <div id="walletSubHistory" style="display: none;">
                 <h2 style="font-size: 20px; font-weight: 800; color: #ffffff; margin-bottom: 14px;">Wallet Transaction Logs</h2>
-                {wallet_html}
+                <div class="coin-filter-row" style="margin-bottom: 16px;">
+                    <button class="coin-filter active" onclick="filterWalletHistory('ALL', this)">ALL</button>
+                    <button class="coin-filter" onclick="filterWalletHistory('DEPOSIT', this)">DEPOSITS</button>
+                    <button class="coin-filter" onclick="filterWalletHistory('WITHDRAWAL', this)">WITHDRAWALS</button>
+                </div>
+
+                <div id="walletListContainer">
+                    {wallet_html}
+                </div>
+
+                <div id="emptyDepositState" class="empty-state-box" style="display: none;">
+                    <div class="empty-icon">📥</div>
+                    <div class="empty-text">No Deposit History found</div>
+                </div>
+
+                <div id="emptyWithdrawalState" class="empty-state-box" style="display: none;">
+                    <div class="empty-icon">📤</div>
+                    <div class="empty-text">No Withdrawal History found</div>
+                </div>
             </div>
         </div>
 
@@ -667,8 +695,24 @@ def get_html():
                 </div>
             </div>
 
-            <div id="walletActivityList">
+            <div class="coin-filter-row" style="margin-bottom: 16px;">
+                <button class="coin-filter active" onclick="filterOverviewHistory('ALL', this)">ALL</button>
+                <button class="coin-filter" onclick="filterOverviewHistory('DEPOSIT', this)">DEPOSITS</button>
+                <button class="coin-filter" onclick="filterOverviewHistory('WITHDRAWAL', this)">WITHDRAWALS</button>
+            </div>
+
+            <div id="overviewListContainer">
                 {wallet_html}
+            </div>
+
+            <div id="emptyOverviewDepositState" class="empty-state-box" style="display: none;">
+                <div class="empty-icon">📥</div>
+                <div class="empty-text">No Deposit History found</div>
+            </div>
+
+            <div id="emptyOverviewWithdrawalState" class="empty-state-box" style="display: none;">
+                <div class="empty-icon">📤</div>
+                <div class="empty-text">No Withdrawal History found</div>
             </div>
         </div>
     </div>
@@ -700,7 +744,7 @@ def get_html():
         </div>
     </div>
 
-    <!-- Dynamic Plan Checkout Modal (UPI QR & UTR Verification) -->
+    <!-- Dynamic Plan Checkout Modal -->
     <div id="payModal" class="modal">
         <div class="modal-content">
             <h3 id="modalPlanTitle" style="color: #38bdf8;">Plan Activation</h3>
@@ -865,6 +909,7 @@ def get_html():
                 document.getElementById('pillDeposit').classList.add('active');
             }} else if (subTab === 'history') {{
                 document.getElementById('walletSubHistory').style.display = 'block';
+                filterWalletHistory('ALL', document.querySelector('#walletSubHistory .coin-filter'));
                 document.getElementById('pillHistory').classList.add('active');
             }} else {{
                 document.getElementById('walletSubConversion').style.display = 'block';
@@ -872,24 +917,93 @@ def get_html():
             }}
         }}
 
+        // Exact Empty State Filter for Trade History (Matching Screenshot 51)
         function filterCoin(coin, btn) {{
-            document.querySelectorAll('.coin-filter').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('#viewTradeLogs .coin-filter').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             
             const rows = document.querySelectorAll('.trade-card-split');
+            const emptyBox = document.getElementById('emptyTradesState');
+            let visibleCount = 0;
             const target = coin.replace(/[^A-Za-z]/g, '').toUpperCase();
 
             rows.forEach(r => {{
                 const rowCoin = (r.getAttribute('data-coin') || '').replace(/[^A-Za-z]/g, '').toUpperCase();
                 if (coin === 'ALL' || rowCoin.includes(target) || target.includes(rowCoin)) {{
                     r.style.display = 'block';
+                    visibleCount++;
                 }} else {{
                     r.style.display = 'none';
                 }}
             }});
+
+            if (visibleCount === 0) {{
+                emptyBox.style.display = 'block';
+            }} else {{
+                emptyBox.style.display = 'none';
+            }}
         }}
 
-        // Dynamic Plan Checkout Modal
+        // Empty State Filter for Wallet History
+        function filterWalletHistory(type, btn) {{
+            if (btn) {{
+                document.querySelectorAll('#walletSubHistory .coin-filter').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            }}
+            const rows = document.querySelectorAll('#walletListContainer .wallet-card');
+            const emptyDep = document.getElementById('emptyDepositState');
+            const emptyWth = document.getElementById('emptyWithdrawalState');
+            let visibleCount = 0;
+
+            emptyDep.style.display = 'none';
+            emptyWth.style.display = 'none';
+
+            rows.forEach(r => {{
+                const cat = r.getAttribute('data-cat');
+                if (type === 'ALL' || cat === type) {{
+                    r.style.display = 'flex';
+                    visibleCount++;
+                }} else {{
+                    r.style.display = 'none';
+                }}
+            }});
+
+            if (visibleCount === 0) {{
+                if (type === 'DEPOSIT') emptyDep.style.display = 'block';
+                else if (type === 'WITHDRAWAL') emptyWth.style.display = 'block';
+            }}
+        }}
+
+        // Empty State Filter for Overview Tab
+        function filterOverviewHistory(type, btn) {{
+            if (btn) {{
+                document.querySelectorAll('#viewOverview .coin-filter').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            }}
+            const rows = document.querySelectorAll('#overviewListContainer .wallet-card');
+            const emptyDep = document.getElementById('emptyOverviewDepositState');
+            const emptyWth = document.getElementById('emptyOverviewWithdrawalState');
+            let visibleCount = 0;
+
+            emptyDep.style.display = 'none';
+            emptyWth.style.display = 'none';
+
+            rows.forEach(r => {{
+                const cat = r.getAttribute('data-cat');
+                if (type === 'ALL' || cat === type) {{
+                    r.style.display = 'flex';
+                    visibleCount++;
+                }} else {{
+                    r.style.display = 'none';
+                }}
+            }});
+
+            if (visibleCount === 0) {{
+                if (type === 'DEPOSIT') emptyDep.style.display = 'block';
+                else if (type === 'WITHDRAWAL') emptyWth.style.display = 'block';
+            }}
+        }}
+
         function openPlanCheckout(planId, price, name, days) {{
             selectedPlanId = planId;
             selectedPlanPrice = price;
@@ -1238,6 +1352,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         "date": now.strftime("%d %b %Y"),
                         "time": now.strftime("%I:%M %p").lower(),
                         "type": f"Withdrawal (₹{amount_inr:,.0f} INR)",
+                        "category": "WITHDRAWAL",
                         "amount": -usdt_needed,
                         "status": "Completed"
                     })
@@ -1265,6 +1380,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         "date": datetime.now().strftime("%d %b %Y"),
                         "time": datetime.now().strftime("%I:%M %p").lower(),
                         "type": f"Converted {amount:.2f} USDT to INR",
+                        "category": "CONVERT",
                         "amount": -amount,
                         "status": "Completed"
                     })
@@ -1281,6 +1397,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         "date": datetime.now().strftime("%d %b %Y"),
                         "time": datetime.now().strftime("%I:%M %p").lower(),
                         "type": f"Converted ₹{amount:.2f} INR to USDT",
+                        "category": "CONVERT",
                         "amount": usdt_received,
                         "status": "Completed"
                     })
@@ -1291,6 +1408,34 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.send_header('Content-type', 'application/json')
             self.end_headers()
             self.wfile.write(json.dumps(res).encode('utf-8'))
+
+        elif self.path == '/run-bot':
+            result = execute_bot_scan(source="Manual")
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(result).encode('utf-8'))
+
+        elif self.path == '/subscribe':
+            db = load_db()
+            email = payload.get('email', 'User')
+            utr = payload.get('utr', 'N/A')
+            expiry = (datetime.now() + timedelta(days=30)).strftime("%d %b %Y")
+            if email in db.get("users", {}):
+                db["users"][email]["status"] = "ACTIVE"
+                db["users"][email]["expires_on"] = expiry
+            db.setdefault("payments", []).append({
+                "email": email,
+                "utr": utr,
+                "amount": 999,
+                "time": datetime.now().strftime("%Y-%m-%d %H:%M")
+            })
+            save_db(db)
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            msg = f"🎉 Payment Recorded! 30 Days Pro Plan activated till {expiry}."
+            self.wfile.write(json.dumps({"status": "success", "message": msg}).encode('utf-8'))
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
