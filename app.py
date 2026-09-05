@@ -14,6 +14,7 @@ exchange = ccxt.binance()
 # Aapki UPI Details
 MY_UPI_ID = "8406012453-2@ibl"
 PAYEE_NAME = "trade.ai"
+PLAN_PRICE_INR = 999
 USDT_INR_RATE = 91.50
 
 MIN_WITHDRAW_INR = 1000.0
@@ -163,6 +164,7 @@ def get_html():
     profit = balance - 1000.0
     profit_sign = "+" if profit >= 0 else ""
 
+    # Trades HTML
     trades_html = ""
     for t in reversed(data.get("trades", [])):
         c = t.get('coin', '').replace('/', '-').upper()
@@ -198,27 +200,31 @@ def get_html():
         </div>
         """
 
-    wallet_html = ""
+    # Separate Personal Histories for Deposit, Withdraw, Conversion
+    deposits_html = ""
+    withdrawals_html = ""
+    conversions_html = ""
+    all_wallet_html = ""
     total_invested = 0.0
     total_withdrawn = 0.0
-    has_deposits = False
-    has_withdrawals = False
 
     for w in data.get("wallet_activity", []):
         amt = w.get("amount", 0.0)
-        cat = "DEPOSIT" if amt >= 0 else "WITHDRAWAL"
-        if amt >= 0:
-            total_invested += amt
-            has_deposits = True
-        else:
+        cat = w.get("category", "")
+        if not cat:
+            cat = "DEPOSIT" if amt >= 0 else "WITHDRAWAL"
+
+        if cat == "DEPOSIT" or amt >= 0 and "Withdrawal" not in w.get("type", "") and "Converted" not in w.get("type", ""):
+            total_invested += abs(amt)
+        elif cat == "WITHDRAWAL" or "Withdrawal" in w.get("type", ""):
             total_withdrawn += abs(amt)
-            has_withdrawals = True
 
         amt_str = f"+${amt:.2f}" if amt >= 0 else f"-${abs(amt):.2f}"
         amt_color = "#34d399" if amt >= 0 else "#ef4444"
         type_color = "#38bdf8" if amt >= 0 else "#f87171"
-        wallet_html += f"""
-        <div class="wallet-card" data-cat="{cat}">
+
+        card_markup = f"""
+        <div class="wallet-card">
             <div>
                 <div style="font-size: 13px; color: #f8fafc; font-weight: 600;">{w.get('date', '')}</div>
                 <div style="font-size: 11px; color: #71717a; margin-top: 2px;">{w.get('time', '')}</div>
@@ -230,6 +236,14 @@ def get_html():
             </div>
         </div>
         """
+        all_wallet_html += card_markup
+
+        if "Converted" in w.get("type", "") or cat == "CONVERSION":
+            conversions_html += card_markup
+        elif "Withdrawal" in w.get("type", "") or cat == "WITHDRAWAL":
+            withdrawals_html += card_markup
+        else:
+            deposits_html += card_markup
 
     def render_plan_card(plan_id, pdata):
         return f"""
@@ -336,10 +350,9 @@ def get_html():
         .btn-view-split {{ background: #bef264; color: #000000; border: none; border-radius: 8px; padding: 6px 18px; font-size: 13px; font-weight: 800; cursor: pointer; transition: 0.2s; }}
         .btn-view-split:hover {{ opacity: 0.9; }}
 
-        /* Empty State Graphic Container */
-        .empty-state-box {{ text-align: center; padding: 46px 20px; border: 1px dashed #16233b; border-radius: 20px; margin-top: 10px; background: rgba(12, 21, 39, 0.4); }}
-        .empty-icon {{ font-size: 42px; margin-bottom: 12px; opacity: 0.85; }}
-        .empty-text {{ color: #94a3b8; font-size: 15px; font-weight: 600; letter-spacing: 0.3px; }}
+        .empty-state-box {{ text-align: center; padding: 36px 18px; border: 1px dashed #16233b; border-radius: 16px; margin: 12px 0; background: rgba(12, 21, 39, 0.3); }}
+        .empty-icon {{ font-size: 38px; margin-bottom: 10px; opacity: 0.85; }}
+        .empty-text {{ color: #94a3b8; font-size: 14px; font-weight: 600; }}
 
         .card-plan {{ background: #0c1527; border: 1px solid #16233b; border-radius: 24px; padding: 26px 24px; margin-bottom: 24px; position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.4); }}
         .plan-sub-title {{ font-size: 11px; font-weight: 800; letter-spacing: 0.8px; color: #94a3b8; text-transform: uppercase; margin-bottom: 4px; }}
@@ -359,8 +372,9 @@ def get_html():
         .summary-label {{ font-size: 11px; color: #94a3b8; font-weight: 600; text-transform: uppercase; }}
         .summary-val {{ font-size: 18px; font-weight: 800; margin-top: 4px; }}
 
-        .wallet-actions-bar {{ display: flex; gap: 8px; margin-bottom: 24px; overflow-x: auto; padding-bottom: 4px; }}
-        .wallet-action-pill {{ background: #0c1527; border: 1px solid #16233b; border-radius: 20px; padding: 8px 16px; color: #94a3b8; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }}
+        /* BOT Wallet Action Bar - Only 3 Options */
+        .wallet-actions-bar {{ display: flex; gap: 10px; margin-bottom: 24px; }}
+        .wallet-action-pill {{ flex: 1; text-align: center; background: #0c1527; border: 1px solid #16233b; border-radius: 20px; padding: 10px 14px; color: #94a3b8; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; }}
         .wallet-action-pill.active {{ background: #38bdf8; color: #060b14; }}
         
         .notice-box {{ background: rgba(56, 189, 248, 0.06); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 14px; padding: 14px 18px; margin-bottom: 20px; color: #94a3b8; font-size: 12px; line-height: 1.5; text-align: left; }}
@@ -487,7 +501,6 @@ def get_html():
                     {trades_html}
                 </div>
 
-                <!-- Empty State for Trade History (Matching Screenshot 51) -->
                 <div id="emptyTradesState" class="empty-state-box" style="display: none;">
                     <div class="empty-icon">📂🔍</div>
                     <div class="empty-text">No Trade History found</div>
@@ -507,7 +520,7 @@ def get_html():
             {plans_html}
         </div>
 
-        <!-- TAB 3: BOT Wallet View -->
+        <!-- TAB 3: BOT Wallet View (3 Options: DEPOSIT, WITHDRAW, CONVERSION with Personal Histories) -->
         <div id="viewBotWallet" style="display: none;">
             <div class="card-position" style="padding: 22px 24px; margin-bottom: 20px;">
                 <div class="card-glow"></div>
@@ -526,14 +539,14 @@ def get_html():
                 </div>
             </div>
 
+            <!-- Action Pills Bar - Strictly 3 Options -->
             <div class="wallet-actions-bar">
                 <button id="pillDeposit" class="wallet-action-pill" onclick="switchWalletTab('deposit')">↙ DEPOSIT • INR ▾</button>
-                <button id="pillWithdraw" class="wallet-action-pill active" onclick="switchWalletTab('withdraw')">↗ WITHDRAW • INR ▾</button>
-                <button id="pillConversion" class="wallet-action-pill" onclick="switchWalletTab('conversion')">⇄ CONVERSION</button>
-                <button id="pillHistory" class="wallet-action-pill" onclick="switchWalletTab('history')">⏱ HISTORY</button>
+                <button id="pillWithdraw" class="wallet-action-pill" onclick="switchWalletTab('withdraw')">↗ WITHDRAW • INR ▾</button>
+                <button id="pillConversion" class="wallet-action-pill active" onclick="switchWalletTab('conversion')">⇄ CONVERSION</button>
             </div>
 
-            <!-- Sub-tab 1: Deposit INR -->
+            <!-- Sub-tab 1: Deposit INR (Form + Personal Deposit History) -->
             <div id="walletSubDeposit" style="display: none;">
                 <div class="step-indicator">
                     <span class="step-circle">1</span> <span>PAYMENT DETAILS</span> ────── <span class="step-circle" style="background:#1e293b; color:#94a3b8;">2</span> <span>SUBMIT PROOF</span>
@@ -555,14 +568,23 @@ def get_html():
                         </div>
                         <div style="font-family: monospace; color: #38bdf8; font-size: 13px; margin-top: 8px;">UPI ID: {MY_UPI_ID}</div>
                     </div>
-                    <a id="depositIntentBtn" href="#" class="pill-btn-wide" style="background: #0284c7; color: white; text-decoration: none; font-weight: 700; margin-bottom: 14px; text-align: center;">📱 Pay via Any UPI App (GPay/PhonePe)</a>
+                    <a id="depositIntentBtn" href="#" class="pill-btn-wide" style="background: #0284c7; color: white; text-decoration: none; font-weight: 700; margin-bottom: 14px; text-align: center;">📱 Open Google Pay / PhonePe (Pay ₹999)</a>
                     <input id="depositUtrInput" type="text" class="input-box" placeholder="Enter 12-digit UTR No. after payment">
                     <button class="btn-action" style="background: #10b981;" onclick="submitDepositUtr()">Submit Proof & Verify</button>
                 </div>
+
+                <!-- Personal Deposit History -->
+                <div style="margin-top: 28px;">
+                    <h3 style="font-size: 17px; font-weight: 800; color: #ffffff; margin-bottom: 14px;">Deposit History</h3>
+                    <div id="personalDepositList">
+                        {deposits_html}
+                    </div>
+                    {"" if deposits_html else '<div class="empty-state-box"><div class="empty-icon">📥</div><div class="empty-text">No Deposit History found</div></div>'}
+                </div>
             </div>
 
-            <!-- Sub-tab 2: Withdraw INR -->
-            <div id="walletSubWithdraw">
+            <!-- Sub-tab 2: Withdraw INR (Form + Personal Withdrawal History) -->
+            <div id="walletSubWithdraw" style="display: none;">
                 <h2 style="font-size: 22px; font-weight: 800; color: #ffffff; margin-bottom: 6px;">Withdraw Funds (INR)</h2>
                 <p style="font-size: 12px; color: #94a3b8; margin-bottom: 16px;">Request an instant withdrawal in Indian Rupees directly to your verified Bank Account or UPI.</p>
                 
@@ -579,10 +601,19 @@ def get_html():
                     
                     <button class="btn-action" style="background: #ef4444; padding: 14px; font-size: 15px; margin-top: 6px;" onclick="submitWithdrawalInr()">Request Withdrawal (INR)</button>
                 </div>
+
+                <!-- Personal Withdrawal History -->
+                <div style="margin-top: 28px;">
+                    <h3 style="font-size: 17px; font-weight: 800; color: #ffffff; margin-bottom: 14px;">Withdrawal History</h3>
+                    <div id="personalWithdrawList">
+                        {withdrawals_html}
+                    </div>
+                    {"" if withdrawals_html else '<div class="empty-state-box"><div class="empty-icon">📤</div><div class="empty-text">No Withdrawal History found</div></div>'}
+                </div>
             </div>
 
-            <!-- Sub-tab 3: Conversion -->
-            <div id="walletSubConversion" style="display: none;">
+            <!-- Sub-tab 3: Conversion (Form + Personal Conversion History) -->
+            <div id="walletSubConversion">
                 <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 6px;">
                     <div style="background: #064e3b; border: 1px solid #059669; width: 36px; height: 36px; border-radius: 10px; display: flex; justify-content: center; align-items: center; font-size: 18px;">🤖</div>
                     <div>
@@ -648,29 +679,14 @@ def get_html():
 
                     <button class="btn-action" style="background: linear-gradient(90deg, #10b981, #059669); margin-top: 14px; padding: 14px; font-size: 16px;" onclick="executeConversion()">Convert</button>
                 </div>
-            </div>
 
-            <!-- Sub-tab 4: History (With Filters and Empty States) -->
-            <div id="walletSubHistory" style="display: none;">
-                <h2 style="font-size: 20px; font-weight: 800; color: #ffffff; margin-bottom: 14px;">Wallet Transaction Logs</h2>
-                <div class="coin-filter-row" style="margin-bottom: 16px;">
-                    <button class="coin-filter active" onclick="filterWalletHistory('ALL', this)">ALL</button>
-                    <button class="coin-filter" onclick="filterWalletHistory('DEPOSIT', this)">DEPOSITS</button>
-                    <button class="coin-filter" onclick="filterWalletHistory('WITHDRAWAL', this)">WITHDRAWALS</button>
-                </div>
-
-                <div id="walletListContainer">
-                    {wallet_html}
-                </div>
-
-                <div id="emptyDepositState" class="empty-state-box" style="display: none;">
-                    <div class="empty-icon">📥</div>
-                    <div class="empty-text">No Deposit History found</div>
-                </div>
-
-                <div id="emptyWithdrawalState" class="empty-state-box" style="display: none;">
-                    <div class="empty-icon">📤</div>
-                    <div class="empty-text">No Withdrawal History found</div>
+                <!-- Personal Conversion History -->
+                <div style="margin-top: 28px;">
+                    <h3 style="font-size: 17px; font-weight: 800; color: #ffffff; margin-bottom: 14px;">Conversion History</h3>
+                    <div id="personalConversionList">
+                        {conversions_html}
+                    </div>
+                    {"" if conversions_html else '<div class="empty-state-box"><div class="empty-icon">🔄</div><div class="empty-text">No Conversion History found</div></div>'}
                 </div>
             </div>
         </div>
@@ -695,24 +711,8 @@ def get_html():
                 </div>
             </div>
 
-            <div class="coin-filter-row" style="margin-bottom: 16px;">
-                <button class="coin-filter active" onclick="filterOverviewHistory('ALL', this)">ALL</button>
-                <button class="coin-filter" onclick="filterOverviewHistory('DEPOSIT', this)">DEPOSITS</button>
-                <button class="coin-filter" onclick="filterOverviewHistory('WITHDRAWAL', this)">WITHDRAWALS</button>
-            </div>
-
             <div id="overviewListContainer">
-                {wallet_html}
-            </div>
-
-            <div id="emptyOverviewDepositState" class="empty-state-box" style="display: none;">
-                <div class="empty-icon">📥</div>
-                <div class="empty-text">No Deposit History found</div>
-            </div>
-
-            <div id="emptyOverviewWithdrawalState" class="empty-state-box" style="display: none;">
-                <div class="empty-icon">📤</div>
-                <div class="empty-text">No Withdrawal History found</div>
+                {all_wallet_html}
             </div>
         </div>
     </div>
@@ -879,7 +879,7 @@ def get_html():
             }} else if (tab === 'botWallet') {{
                 document.getElementById('viewBotWallet').style.display = 'block';
                 document.getElementById('navBotWallet').classList.add('active');
-                switchWalletTab('withdraw');
+                switchWalletTab('conversion');
             }} else if (tab === 'overview') {{
                 document.getElementById('viewOverview').style.display = 'block';
                 document.getElementById('navOverview').classList.add('active');
@@ -893,12 +893,10 @@ def get_html():
             document.getElementById('walletSubDeposit').style.display = 'none';
             document.getElementById('walletSubWithdraw').style.display = 'none';
             document.getElementById('walletSubConversion').style.display = 'none';
-            document.getElementById('walletSubHistory').style.display = 'none';
 
             document.getElementById('pillDeposit').classList.remove('active');
             document.getElementById('pillWithdraw').classList.remove('active');
             document.getElementById('pillConversion').classList.remove('active');
-            document.getElementById('pillHistory').classList.remove('active');
 
             if (subTab === 'withdraw') {{
                 document.getElementById('walletSubWithdraw').style.display = 'block';
@@ -907,17 +905,12 @@ def get_html():
                 document.getElementById('walletSubDeposit').style.display = 'block';
                 updateDepositQr(999);
                 document.getElementById('pillDeposit').classList.add('active');
-            }} else if (subTab === 'history') {{
-                document.getElementById('walletSubHistory').style.display = 'block';
-                filterWalletHistory('ALL', document.querySelector('#walletSubHistory .coin-filter'));
-                document.getElementById('pillHistory').classList.add('active');
             }} else {{
                 document.getElementById('walletSubConversion').style.display = 'block';
                 document.getElementById('pillConversion').classList.add('active');
             }}
         }}
 
-        // Exact Empty State Filter for Trade History (Matching Screenshot 51)
         function filterCoin(coin, btn) {{
             document.querySelectorAll('#viewTradeLogs .coin-filter').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
@@ -941,66 +934,6 @@ def get_html():
                 emptyBox.style.display = 'block';
             }} else {{
                 emptyBox.style.display = 'none';
-            }}
-        }}
-
-        // Empty State Filter for Wallet History
-        function filterWalletHistory(type, btn) {{
-            if (btn) {{
-                document.querySelectorAll('#walletSubHistory .coin-filter').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-            }}
-            const rows = document.querySelectorAll('#walletListContainer .wallet-card');
-            const emptyDep = document.getElementById('emptyDepositState');
-            const emptyWth = document.getElementById('emptyWithdrawalState');
-            let visibleCount = 0;
-
-            emptyDep.style.display = 'none';
-            emptyWth.style.display = 'none';
-
-            rows.forEach(r => {{
-                const cat = r.getAttribute('data-cat');
-                if (type === 'ALL' || cat === type) {{
-                    r.style.display = 'flex';
-                    visibleCount++;
-                }} else {{
-                    r.style.display = 'none';
-                }}
-            }});
-
-            if (visibleCount === 0) {{
-                if (type === 'DEPOSIT') emptyDep.style.display = 'block';
-                else if (type === 'WITHDRAWAL') emptyWth.style.display = 'block';
-            }}
-        }}
-
-        // Empty State Filter for Overview Tab
-        function filterOverviewHistory(type, btn) {{
-            if (btn) {{
-                document.querySelectorAll('#viewOverview .coin-filter').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-            }}
-            const rows = document.querySelectorAll('#overviewListContainer .wallet-card');
-            const emptyDep = document.getElementById('emptyOverviewDepositState');
-            const emptyWth = document.getElementById('emptyOverviewWithdrawalState');
-            let visibleCount = 0;
-
-            emptyDep.style.display = 'none';
-            emptyWth.style.display = 'none';
-
-            rows.forEach(r => {{
-                const cat = r.getAttribute('data-cat');
-                if (type === 'ALL' || cat === type) {{
-                    r.style.display = 'flex';
-                    visibleCount++;
-                }} else {{
-                    r.style.display = 'none';
-                }}
-            }});
-
-            if (visibleCount === 0) {{
-                if (type === 'DEPOSIT') emptyDep.style.display = 'block';
-                else if (type === 'WITHDRAWAL') emptyWth.style.display = 'block';
             }}
         }}
 
@@ -1380,7 +1313,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         "date": datetime.now().strftime("%d %b %Y"),
                         "time": datetime.now().strftime("%I:%M %p").lower(),
                         "type": f"Converted {amount:.2f} USDT to INR",
-                        "category": "CONVERT",
+                        "category": "CONVERSION",
                         "amount": -amount,
                         "status": "Completed"
                     })
@@ -1397,7 +1330,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         "date": datetime.now().strftime("%d %b %Y"),
                         "time": datetime.now().strftime("%I:%M %p").lower(),
                         "type": f"Converted ₹{amount:.2f} INR to USDT",
-                        "category": "CONVERT",
+                        "category": "CONVERSION",
                         "amount": usdt_received,
                         "status": "Completed"
                     })
@@ -1415,27 +1348,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.send_header('Content-type', 'application/json')
             self.end_headers()
             self.wfile.write(json.dumps(result).encode('utf-8'))
-
-        elif self.path == '/subscribe':
-            db = load_db()
-            email = payload.get('email', 'User')
-            utr = payload.get('utr', 'N/A')
-            expiry = (datetime.now() + timedelta(days=30)).strftime("%d %b %Y")
-            if email in db.get("users", {}):
-                db["users"][email]["status"] = "ACTIVE"
-                db["users"][email]["expires_on"] = expiry
-            db.setdefault("payments", []).append({
-                "email": email,
-                "utr": utr,
-                "amount": 999,
-                "time": datetime.now().strftime("%Y-%m-%d %H:%M")
-            })
-            save_db(db)
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            msg = f"🎉 Payment Recorded! 30 Days Pro Plan activated till {expiry}."
-            self.wfile.write(json.dumps({"status": "success", "message": msg}).encode('utf-8'))
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
