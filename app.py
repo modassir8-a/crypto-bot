@@ -11,7 +11,7 @@ DB_FILE = 'trades.json'
 coins = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT']
 exchange = ccxt.binance()
 
-# Aapki Bank Details (Bot Investment Deposit ke liye)
+# Bank Details
 BANK_NAME = "India Post Payments Bank"
 ACCOUNT_NUMBER = "021210215499"
 IFSC_CODE = "IPOS0000001"
@@ -87,45 +87,6 @@ def load_db():
             "risk": "Moderate (1.5%)"
         }
     }
-
-    # Aapka Personal Account mdm906581@gmail.com
-    user_p = data["users"].get("mdm906581@gmail.com", {})
-    curr_usdt = user_p.get("balance", 0.0)
-    curr_inr = user_p.get("inr_balance", 0.0)
-    # Agar swap nahi hua hai toh 8000 INR available rakhein
-    if curr_usdt == 0.0 and curr_inr == 0.0:
-        curr_inr = 8000.0
-
-    data["users"]["mdm906581@gmail.com"] = {
-        "password": user_p.get("password") or "password",
-        "status": "ACTIVE",
-        "plan": "NONE",
-        "days_left": 0,
-        "balance": curr_usdt,
-        "inr_balance": curr_inr,
-        "is_admin": False,
-        "profile": {
-            "name": "Modassir",
-            "phone": "+91 8406012453",
-            "country": "India 🇮🇳"
-        }
-    }
-
-    # Add 8000 INR deposit in activity if not present
-    has_8k = any(w.get("amount_inr") == 8000.0 and w.get("email") == "mdm906581@gmail.com" for w in data["wallet_activity"])
-    if not has_8k:
-        data["wallet_activity"].insert(0, {
-            "id": f"dep_{int(time.time())}",
-            "email": "mdm906581@gmail.com",
-            "sender_name": "Modassir",
-            "date": datetime.now().strftime("%d %b %Y"),
-            "time": datetime.now().strftime("%I:%M %p").lower(),
-            "type": "INR Deposit (Bank Transfer)",
-            "category": "DEPOSIT",
-            "amount_inr": 8000.0,
-            "utr": "123456789012",
-            "status": "Completed"
-        })
 
     return data
 
@@ -435,7 +396,7 @@ def get_html():
             </div>
 
             <div id="loginForm">
-                <input id="loginEmail" type="email" class="input-box" placeholder="Gmail Address" value="mdm906581@gmail.com">
+                <input id="loginEmail" type="email" class="input-box" placeholder="Gmail Address">
                 <input id="loginPassword" type="password" class="input-box" placeholder="Password">
                 <button class="btn-action" onclick="handleLogin()">Login to Terminal</button>
                 <p style="font-size: 11px; color: #64748b; margin-top: 12px;">Admin: admin@cryptobot.com / admin123</p>
@@ -1527,7 +1488,7 @@ def get_html():
         async function handleLogin() {{
             const email = document.getElementById('loginEmail').value.trim().toLowerCase();
             const pass = document.getElementById('loginPassword').value.trim();
-            if (!email) {{ alert('Please enter Email'); return; }}
+            if (!email || !pass) {{ alert('Please enter Email and Password'); return; }}
             const res = await fetch('/api/login', {{
                 method: 'POST',
                 headers: {{ 'Content-Type': 'application/json' }},
@@ -1623,28 +1584,18 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 if password == 'admin123':
                     res = {"status": "success", "message": "Admin Login successful!", "plan_status": "ACTIVE"}
                 else:
-                    res = {"status": "error", "message": "Galat Admin Password! Dubara check karein."}
+                    res = {"status": "error", "message": "❌ Galat Admin Password! Dubara check karein."}
             else:
-                users = db.setdefault("users", {})
-                if email not in users:
-                    users[email] = {
-                        "password": password,
-                        "status": "ACTIVE",
-                        "plan": "NONE",
-                        "days_left": 0,
-                        "balance": 0.0,
-                        "inr_balance": (8000.0 if email == 'mdm906581@gmail.com' else 0.0),
-                        "is_admin": False,
-                        "profile": {"name": email.split('@')[0], "phone": "", "country": "India 🇮🇳"}
-                    }
-                else:
-                    # Update password so user is never rejected
-                    users[email]["password"] = password
-                    if email == 'mdm906581@gmail.com' and users[email].get("balance", 0.0) == 0.0 and users[email].get("inr_balance", 0.0) == 0.0:
-                        users[email]["inr_balance"] = 8000.0
+                users = db.get("users", {})
+                user = users.get(email)
 
-                save_db(db)
-                res = {"status": "success", "message": "Login successful!"}
+                # STRICT SECURITY CHECK:
+                if not user:
+                    res = {"status": "error", "message": "❌ Yeh email registered nahi hai! Kripya pehle Sign Up karein."}
+                elif user.get("password") != password:
+                    res = {"status": "error", "message": "❌ Galat Password! Dubara check karein."}
+                else:
+                    res = {"status": "success", "message": "Login successful!", "plan_status": user.get("status", "INACTIVE")}
 
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
@@ -1657,8 +1608,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
             db = load_db()
             users = db.setdefault("users", {})
 
-            if email in users:
-                users[email]["password"] = password
+            # STRICT SECURITY CHECK: Duplicate Signup 100% Blocked!
+            if email in users or email == 'admin@cryptobot.com':
+                res = {"status": "error", "message": "⚠️ Yeh email pehle se registered hai! Kripya Login karein."}
             else:
                 users[email] = {
                     "password": password,
@@ -1667,16 +1619,32 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     "days_left": 0,
                     "created_on": str(datetime.now().date()),
                     "balance": 0.0,
+                    # Agar aapka personal email hai toh 8,000 INR ready
                     "inr_balance": (8000.0 if email == 'mdm906581@gmail.com' else 0.0),
                     "is_admin": False,
+                    "trades": [],
+                    "wallet_activity": [],
                     "profile": {
                         "name": email.split('@')[0],
                         "phone": "",
                         "country": "India 🇮🇳"
                     }
                 }
-            save_db(db)
-            res = {"status": "success", "message": "Account ready! Logging you in..."}
+                if email == 'mdm906581@gmail.com':
+                    db.setdefault("wallet_activity", []).insert(0, {
+                        "id": f"dep_{int(time.time())}",
+                        "email": email,
+                        "sender_name": "Modassir",
+                        "date": datetime.now().strftime("%d %b %Y"),
+                        "time": datetime.now().strftime("%I:%M %p").lower(),
+                        "type": "INR Deposit (Bank Transfer)",
+                        "category": "DEPOSIT",
+                        "amount_inr": 8000.0,
+                        "utr": "123456789012",
+                        "status": "Completed"
+                    })
+                save_db(db)
+                res = {"status": "success", "message": "🎉 Account ban gaya! Ab aap login kar sakte hain."}
 
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
@@ -1703,7 +1671,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     "plan": "NONE",
                     "days_left": 0,
                     "balance": 0.0,
-                    "inr_balance": (8000.0 if email == 'mdm906581@gmail.com' else 0.0),
+                    "inr_balance": 0.0,
                     "is_admin": False
                 })
 
