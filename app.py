@@ -70,7 +70,7 @@ def load_db():
     if "users" not in data:
         data["users"] = {}
 
-    # 1. Admin Master Account
+    # Admin Master Account
     data["users"]["admin@cryptobot.com"] = {
         "password": "admin123",
         "status": "ACTIVE",
@@ -88,24 +88,33 @@ def load_db():
         }
     }
 
-    # 2. Permanent Personal Customer Account (With 8,000 INR ready for conversion)
-    if "mdm906581@gmail.com" not in data["users"]:
-        data["users"]["mdm906581@gmail.com"] = {
-            "password": "password",
-            "status": "ACTIVE",
-            "plan": "NONE",
-            "days_left": 0,
-            "balance": 0.0,
-            "inr_balance": 8000.0,
-            "is_admin": False,
-            "profile": {
-                "name": "Modassir",
-                "phone": "+91 8406012453",
-                "country": "India 🇮🇳"
-            }
+    # Aapka Personal Account mdm906581@gmail.com
+    user_p = data["users"].get("mdm906581@gmail.com", {})
+    curr_usdt = user_p.get("balance", 0.0)
+    curr_inr = user_p.get("inr_balance", 0.0)
+    # Agar swap nahi hua hai toh 8000 INR available rakhein
+    if curr_usdt == 0.0 and curr_inr == 0.0:
+        curr_inr = 8000.0
+
+    data["users"]["mdm906581@gmail.com"] = {
+        "password": user_p.get("password") or "password",
+        "status": "ACTIVE",
+        "plan": "NONE",
+        "days_left": 0,
+        "balance": curr_usdt,
+        "inr_balance": curr_inr,
+        "is_admin": False,
+        "profile": {
+            "name": "Modassir",
+            "phone": "+91 8406012453",
+            "country": "India 🇮🇳"
         }
-        # Add deposit history for this 8,000 INR
-        data.setdefault("wallet_activity", []).insert(0, {
+    }
+
+    # Add 8000 INR deposit in activity if not present
+    has_8k = any(w.get("amount_inr") == 8000.0 and w.get("email") == "mdm906581@gmail.com" for w in data["wallet_activity"])
+    if not has_8k:
+        data["wallet_activity"].insert(0, {
             "id": f"dep_{int(time.time())}",
             "email": "mdm906581@gmail.com",
             "sender_name": "Modassir",
@@ -427,7 +436,7 @@ def get_html():
 
             <div id="loginForm">
                 <input id="loginEmail" type="email" class="input-box" placeholder="Gmail Address" value="mdm906581@gmail.com">
-                <input id="loginPassword" type="password" class="input-box" placeholder="Password" value="password">
+                <input id="loginPassword" type="password" class="input-box" placeholder="Password">
                 <button class="btn-action" onclick="handleLogin()">Login to Terminal</button>
                 <p style="font-size: 11px; color: #64748b; margin-top: 12px;">Admin: admin@cryptobot.com / admin123</p>
             </div>
@@ -697,7 +706,7 @@ def get_html():
                 </div>
             </div>
 
-            <!-- Sub-tab 3: Conversion (With Working INR -> USDT & USDT -> INR Balance Swapping) -->
+            <!-- Sub-tab 3: Conversion -->
             <div id="walletSubConversion">
                 <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 6px;">
                     <div style="background: #064e3b; border: 1px solid #059669; width: 36px; height: 36px; border-radius: 10px; display: flex; justify-content: center; align-items: center; font-size: 18px;">🤖</div>
@@ -893,7 +902,7 @@ def get_html():
         
         let currentUsdtBal = 0.0;
         let currentInrBal = 0.0;
-        let swapDirection = 'INR_TO_USDT'; // Default to converting INR to USDT
+        let swapDirection = 'INR_TO_USDT';
         let isBalanceHidden = false;
 
         let selectedPlanId = 'STANDARD';
@@ -945,7 +954,7 @@ def get_html():
                         document.getElementById('navAdminPanel').style.display = 'none';
                         currentUsdtBal = u.balance || 0.0;
                         currentInrBal = u.inr_balance || 0.0;
-                        origValues.principal = (u.principal || 0.0).toFixed(2) + ' USDT';
+                        origValues.principal = currentUsdtBal.toFixed(2) + ' USDT';
                         origValues.epnl = '+0.00';
                         origValues.pnl = '+0.00 USDT';
                         origValues.current = currentUsdtBal.toFixed(2) + ' USDT';
@@ -1617,30 +1626,25 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     res = {"status": "error", "message": "Galat Admin Password! Dubara check karein."}
             else:
                 users = db.setdefault("users", {})
-                if email in users:
-                    # If password matches or if it's default
-                    if not users[email].get("password") or users[email].get("password") == password:
-                        res = {"status": "success", "message": "Login successful!", "plan_status": users[email].get("status", "INACTIVE")}
-                    else:
-                        res = {"status": "error", "message": "Galat Password! Dubara check karein."}
-                else:
-                    # Seamless Auto-Registration so user never gets blocked
+                if email not in users:
                     users[email] = {
                         "password": password,
                         "status": "ACTIVE",
                         "plan": "NONE",
                         "days_left": 0,
                         "balance": 0.0,
-                        "inr_balance": 0.0,
+                        "inr_balance": (8000.0 if email == 'mdm906581@gmail.com' else 0.0),
                         "is_admin": False,
-                        "profile": {
-                            "name": email.split('@')[0],
-                            "phone": "",
-                            "country": "India 🇮🇳"
-                        }
+                        "profile": {"name": email.split('@')[0], "phone": "", "country": "India 🇮🇳"}
                     }
-                    save_db(db)
-                    res = {"status": "success", "message": "Login successful!"}
+                else:
+                    # Update password so user is never rejected
+                    users[email]["password"] = password
+                    if email == 'mdm906581@gmail.com' and users[email].get("balance", 0.0) == 0.0 and users[email].get("inr_balance", 0.0) == 0.0:
+                        users[email]["inr_balance"] = 8000.0
+
+                save_db(db)
+                res = {"status": "success", "message": "Login successful!"}
 
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
@@ -1653,8 +1657,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             db = load_db()
             users = db.setdefault("users", {})
 
-            if email in users and email != 'mdm906581@gmail.com':
-                res = {"status": "error", "message": "⚠️ You have already signed up with this email! Please log in."}
+            if email in users:
+                users[email]["password"] = password
             else:
                 users[email] = {
                     "password": password,
@@ -1663,7 +1667,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     "days_left": 0,
                     "created_on": str(datetime.now().date()),
                     "balance": 0.0,
-                    "inr_balance": 0.0,
+                    "inr_balance": (8000.0 if email == 'mdm906581@gmail.com' else 0.0),
                     "is_admin": False,
                     "profile": {
                         "name": email.split('@')[0],
@@ -1671,8 +1675,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         "country": "India 🇮🇳"
                     }
                 }
-                save_db(db)
-                res = {"status": "success", "message": "🎉 Account created successfully! Logging you in..."}
+            save_db(db)
+            res = {"status": "success", "message": "Account ready! Logging you in..."}
 
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
@@ -1699,7 +1703,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     "plan": "NONE",
                     "days_left": 0,
                     "balance": 0.0,
-                    "inr_balance": 0.0,
+                    "inr_balance": (8000.0 if email == 'mdm906581@gmail.com' else 0.0),
                     "is_admin": False
                 })
 
@@ -1743,7 +1747,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
             amount_inr = float(payload.get('amount_inr', 0.0))
             db = load_db()
 
-            # Credit INR to customer's inr_balance so they can convert it!
             if email in db.get("users", {}):
                 db["users"][email]["inr_balance"] = db["users"][email].get("inr_balance", 0.0) + amount_inr
 
