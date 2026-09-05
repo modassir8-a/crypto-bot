@@ -28,16 +28,22 @@ autopilot_state = {
 # Database Helpers
 def load_db():
     default_expiry = (datetime.now() + timedelta(days=30)).strftime("%d %b %Y")
+    real_initial_activity = [
+        {"date": "04 Sep 2026", "time": "09:00 pm", "type": "Initial Bot Investment", "amount": 1000.0, "status": "Completed"}
+    ]
     if os.path.exists(DB_FILE):
         with open(DB_FILE, 'r') as f:
             data = json.load(f)
-            if "wallet_activity" not in data:
+            # Remove fake sample data if present
+            if "wallet_activity" in data:
                 data["wallet_activity"] = [
-                    {"date": "05 Sep 2026", "time": "10:30 am", "type": "Investment", "amount": 1000.0, "status": "Completed"},
-                    {"date": "04 Sep 2026", "time": "08:15 pm", "type": "Investment Withdrawal", "amount": -200.0, "status": "Completed"},
-                    {"date": "04 Sep 2026", "time": "05:52 pm", "type": "Investment", "amount": 2600.0, "status": "Completed"},
-                    {"date": "03 Sep 2026", "time": "08:39 pm", "type": "Investment Withdrawal", "amount": -600.0, "status": "Completed"}
+                    w for w in data["wallet_activity"] 
+                    if abs(w.get("amount", 0)) not in [2600.0, 600.0, 200.0]
                 ]
+                if not data["wallet_activity"]:
+                    data["wallet_activity"] = real_initial_activity
+            else:
+                data["wallet_activity"] = real_initial_activity
             return data
     return {
         "balance": 1000.0,
@@ -59,11 +65,7 @@ def load_db():
             }
         },
         "trades": [],
-        "wallet_activity": [
-            {"date": "05 Sep 2026", "time": "10:30 am", "type": "Investment", "amount": 1000.0, "status": "Completed"},
-            {"date": "04 Sep 2026", "time": "08:15 pm", "type": "Investment Withdrawal", "amount": -200.0, "status": "Completed"},
-            {"date": "04 Sep 2026", "time": "05:52 pm", "type": "Investment", "amount": 2600.0, "status": "Completed"}
-        ],
+        "wallet_activity": real_initial_activity,
         "payments": []
     }
 
@@ -174,19 +176,26 @@ def get_html():
     if not trades_html:
         trades_html = "<div style='text-align: center; color: #64748b; padding: 24px;'>No realized trade history yet.</div>"
 
-    # Wallet Activity (Overview) HTML
+    # Wallet Activity (Read-Only History) HTML
     wallet_html = ""
+    total_invested = 0.0
+    total_withdrawn = 0.0
     for w in data.get("wallet_activity", []):
         amt = w.get("amount", 0.0)
+        if amt >= 0:
+            total_invested += amt
+        else:
+            total_withdrawn += abs(amt)
+
         amt_str = f"+${amt:.2f}" if amt >= 0 else f"-${abs(amt):.2f}"
         amt_color = "#34d399" if amt >= 0 else "#ef4444"
-        type_color = "#bef264" if amt >= 0 else "#f87171"
+        type_color = "#38bdf8" if amt >= 0 else "#f87171"
         wallet_html += f"""
         <div class="wallet-card">
             <div>
                 <div style="font-size: 13px; color: #f8fafc; font-weight: 600;">{w.get('date', '')}</div>
                 <div style="font-size: 11px; color: #71717a; margin-top: 2px;">{w.get('time', '')}</div>
-                <div style="font-size: 13px; color: {type_color}; margin-top: 8px; font-weight: 600;">{w.get('type', '')}</div>
+                <div style="font-size: 13px; color: {type_color}; margin-top: 6px; font-weight: 600;">{w.get('type', '')}</div>
             </div>
             <div style="text-align: right;">
                 <div style="font-size: 16px; font-weight: 800; color: {amt_color};">{amt_str}</div>
@@ -194,6 +203,9 @@ def get_html():
             </div>
         </div>
         """
+
+    if not wallet_html:
+        wallet_html = "<div style='text-align: center; color: #64748b; padding: 24px;'>No transaction history found.</div>"
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -219,10 +231,8 @@ def get_html():
         .nav-item {{ color: #94a3b8; text-decoration: none; font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 20px; white-space: nowrap; cursor: pointer; border: none; background: transparent; }}
         .nav-item.active {{ background: #0284c7; color: #ffffff; font-weight: 700; }}
 
-        /* Action Buttons */
         .btn-growth {{ background: #0284c7; color: #ffffff; border: none; border-radius: 20px; padding: 10px 20px; font-size: 13px; font-weight: 700; cursor: pointer; margin-bottom: 18px; display: inline-block; }}
         .btn-growth:hover {{ background: #0369a1; }}
-        .btn-secondary {{ background: #131b2e; border: 1px solid #27272a; color: #e2e8f0; border-radius: 20px; padding: 8px 16px; font-size: 12px; font-weight: 600; cursor: pointer; }}
 
         /* Open Position Card */
         .card-position {{ background: #0c1527; border: 1px solid #16233b; border-radius: 24px; padding: 26px 24px; position: relative; overflow: hidden; margin-bottom: 28px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }}
@@ -248,6 +258,11 @@ def get_html():
         /* Wallet Activity (Overview View) */
         .wallet-card {{ background: #0c1527; border: 1px solid #16233b; border-radius: 16px; padding: 18px 20px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }}
         .status-badge {{ background: #064e3b; color: #34d399; border: 1px solid #059669; padding: 4px 12px; border-radius: 16px; font-size: 11px; font-weight: 700; display: inline-block; margin-top: 6px; }}
+
+        /* Overview Summary Box */
+        .overview-summary {{ background: #0c1527; border: 1px solid #16233b; border-radius: 18px; padding: 18px; margin-bottom: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; text-align: center; }}
+        .summary-label {{ font-size: 11px; color: #94a3b8; font-weight: 600; text-transform: uppercase; }}
+        .summary-val {{ font-size: 18px; font-weight: 800; margin-top: 4px; }}
 
         /* Modal Styles */
         .modal {{ display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(6,11,20,0.92); justify-content: center; align-items: center; z-index: 100; padding: 16px; }}
@@ -363,34 +378,31 @@ def get_html():
             </div>
         </div>
 
-        <!-- TAB 2: Overview / Bot Wallet Activity View -->
+        <!-- TAB 2: Overview / Bot Wallet Activity (Pure Read-Only History) -->
         <div id="viewOverview" style="display: none;">
-            <div style="margin-bottom: 22px;">
+            <div style="margin-bottom: 20px;">
                 <h2 style="font-size: 24px; font-weight: 800; color: #ffffff; margin-bottom: 6px;">Bot Wallet Activity</h2>
                 <p style="font-size: 13px; color: #94a3b8; line-height: 1.5;">
                     Track all automated trading transactions, earnings, and fund movements generated by your active bot strategies.
                 </p>
             </div>
 
-            <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
-                <button class="btn-growth" style="margin-bottom: 0;" onclick="openTransactionModal('Investment')">+ Add Investment</button>
-                <button class="btn-secondary" onclick="openTransactionModal('Investment Withdrawal')">- Request Withdrawal</button>
-                <button class="btn-secondary" onclick="alert('Referral Earnings: $0.00 (Share your link to earn 10%)')">View Referral Earnings</button>
+            <!-- Summary of Real Investment & Withdrawal -->
+            <div class="overview-summary">
+                <div>
+                    <div class="summary-label">Total Bot Investment</div>
+                    <div class="summary-val" style="color: #34d399;">${total_invested:.2f} USDT</div>
+                </div>
+                <div>
+                    <div class="summary-label">Total Withdrawal</div>
+                    <div class="summary-val" style="color: #f87171;">-${total_withdrawn:.2f} USDT</div>
+                </div>
             </div>
 
+            <!-- Transaction History List -->
             <div id="walletActivityList">
                 {wallet_html}
             </div>
-        </div>
-    </div>
-
-    <!-- Transaction Modal (Deposit / Withdrawal) -->
-    <div id="txModal" class="modal">
-        <div class="modal-content">
-            <h3 id="txModalTitle" style="color: #38bdf8; margin-bottom: 12px;">Add Investment</h3>
-            <input id="txAmountInput" type="number" class="input-box" placeholder="Enter Amount in USDT (e.g. 500)">
-            <button class="btn-action" style="background: #10b981;" onclick="submitWalletAction()">Confirm Transaction</button>
-            <button class="btn-close" onclick="closeTransactionModal()">Cancel</button>
         </div>
     </div>
 
@@ -422,8 +434,6 @@ def get_html():
     </div>
 
     <script>
-        let currentTxType = 'Investment';
-
         window.addEventListener('DOMContentLoaded', () => {{
             const saved = localStorage.getItem('cryptobot_user_email');
             if (saved) {{
@@ -505,32 +515,6 @@ def get_html():
         function closeProfileModal() {{ document.getElementById('profileModal').style.display = 'none'; }}
         function openPaymentModal() {{ document.getElementById('payModal').style.display = 'flex'; }}
         function closePaymentModal() {{ document.getElementById('payModal').style.display = 'none'; }}
-
-        function openTransactionModal(type) {{
-            currentTxType = type;
-            document.getElementById('txModalTitle').innerText = type;
-            document.getElementById('txModal').style.display = 'flex';
-        }}
-        function closeTransactionModal() {{
-            document.getElementById('txModal').style.display = 'none';
-        }}
-
-        async function submitWalletAction() {{
-            const amt = parseFloat(document.getElementById('txAmountInput').value);
-            if (!amt || amt <= 0) {{
-                alert('Please enter a valid amount!');
-                return;
-            }}
-            const res = await fetch('/api/wallet-action', {{
-                method: 'POST',
-                headers: {{ 'Content-Type': 'application/json' }},
-                body: JSON.stringify({{ type: currentTxType, amount: amt }})
-            }});
-            const data = await res.json();
-            alert(data.message);
-            closeTransactionModal();
-            window.location.reload();
-        }}
 
         function filterCoin(coin, btn) {{
             document.querySelectorAll('.coin-filter').forEach(b => b.classList.remove('active'));
@@ -621,29 +605,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 }
                 save_db(db)
                 res = {"status": "success", "message": "Account created successfully!"}
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps(res).encode('utf-8'))
-
-        elif self.path == '/api/wallet-action':
-            act_type = payload.get('type', 'Investment')
-            amount = float(payload.get('amount', 0.0))
-            db = load_db()
-            is_withdrawal = act_type == 'Investment Withdrawal'
-            final_amount = -abs(amount) if is_withdrawal else abs(amount)
-            db["balance"] += final_amount
-            
-            now = datetime.now()
-            db.setdefault("wallet_activity", []).insert(0, {
-                "date": now.strftime("%d %b %Y"),
-                "time": now.strftime("%I:%M %p").lower(),
-                "type": act_type,
-                "amount": final_amount,
-                "status": "Completed"
-            })
-            save_db(db)
-            res = {"status": "success", "message": f"{act_type} of ${abs(amount):.2f} recorded!"}
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
