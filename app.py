@@ -11,9 +11,9 @@ DB_FILE = 'trades.json'
 coins = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT']
 exchange = ccxt.binance()
 
+# Aapki UPI Details
 MY_UPI_ID = "8406012453-2@ibl"
 PAYEE_NAME = "trade.ai"
-PLAN_PRICE_INR = 999
 USDT_INR_RATE = 91.50
 
 MIN_WITHDRAW_INR = 1000.0
@@ -22,8 +22,12 @@ MAX_WITHDRAW_INR = 10000.0
 ADMIN_COMMISSION_PCT = 0.15
 USER_SHARE_PCT = 0.85
 
-upi_intent_url = f"upi://pay?pa={MY_UPI_ID}&pn={urllib.parse.quote(PAYEE_NAME)}&am={PLAN_PRICE_INR}&cu=INR&tn={urllib.parse.quote('trade.ai Bot Deposit')}"
-qr_image_url = f"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={urllib.parse.quote(upi_intent_url)}"
+# Pricing Plans
+PLANS = {
+    "PREMIUM": {"name": "PREMIUM PACKAGE", "price": 8000, "days": 365, "badge": "BEST VALUE (1 YEAR)"},
+    "STANDARD": {"name": "STANDARD PACKAGE", "price": 999, "days": 30, "badge": "MOST POPULAR"},
+    "BASE": {"name": "BASE PACKAGE", "price": 400, "days": 10, "badge": "STARTER TRIAL"}
+}
 
 autopilot_state = {
     "enabled": True,
@@ -60,8 +64,9 @@ def load_db():
             "admin@cryptobot.com": {
                 "password": "admin123",
                 "status": "ACTIVE",
-                "plan": "Lifetime Owner",
-                "expires_on": "Permanent",
+                "plan": "STANDARD",
+                "expires_on": default_expiry,
+                "days_left": 30,
                 "profile": {
                     "name": "Modassir",
                     "phone": "+91 8406012453",
@@ -224,6 +229,68 @@ def get_html():
         </div>
         """
 
+    # Generate Plan Cards HTML
+    def render_plan_card(plan_id, pdata):
+        return f"""
+        <div class="card-plan">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                    <div class="plan-sub-title">{pdata['name']}</div>
+                    <div class="plan-price-title">₹{pdata['price']:,} <span class="plan-duration">/ {pdata['days']} days</span></div>
+                </div>
+                <span class="plan-badge-tag">{pdata['badge']}</span>
+            </div>
+
+            <div class="plan-feature-list">
+                <div class="plan-feature-item">
+                    <span class="feature-check">✔</span>
+                    <div>
+                        <strong style="color: #ffffff;">Advanced Edge</strong>
+                        <div style="color: #94a3b8; font-size: 11px; margin-top: 2px;">AI-powered insights based on real-time Binance market signals.</div>
+                    </div>
+                </div>
+                <div class="plan-feature-item">
+                    <span class="feature-check">✔</span>
+                    <div>
+                        <strong style="color: #ffffff;">Trade Pro Tools</strong>
+                        <div style="color: #94a3b8; font-size: 11px; margin-top: 2px;">Automated 24/7 execution for BTC, ETH, and SOL pairs.</div>
+                    </div>
+                </div>
+                <div class="plan-feature-item">
+                    <span class="feature-check">✔</span>
+                    <div>
+                        <strong style="color: #ffffff;">Subscription Term</strong>
+                        <div style="color: #94a3b8; font-size: 11px; margin-top: 2px;">Full access to active bot strategies valid for {pdata['days']} days.</div>
+                    </div>
+                </div>
+                <div class="plan-feature-item">
+                    <span class="feature-check">✔</span>
+                    <div>
+                        <strong style="color: #ffffff;">Portfolio Range</strong>
+                        <div style="color: #94a3b8; font-size: 11px; margin-top: 2px;">Optimized for portfolios from $100 to infinity with risk protection.</div>
+                    </div>
+                </div>
+                <div class="plan-feature-item">
+                    <span class="feature-check">✔</span>
+                    <div>
+                        <strong style="color: #ffffff;">Profit Optimization</strong>
+                        <div style="color: #94a3b8; font-size: 11px; margin-top: 2px;">Automated stop-loss (1%) & target (1.5%) profit locking.</div>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn-activate-plan" id="planBtn_{plan_id}" onclick="openPlanCheckout('{plan_id}', {pdata['price']}, '{pdata['name']}', {pdata['days']})">
+                ACTIVATE PLAN (₹{pdata['price']:,})
+            </button>
+        </div>
+        """
+
+    plans_html = ""
+    # Render order: Premium (Top), Standard (Middle), Base (Bottom)
+    plans_html += render_plan_card("PREMIUM", PLANS["PREMIUM"])
+    plans_html += render_plan_card("STANDARD", PLANS["STANDARD"])
+    plans_html += render_plan_card("BASE", PLANS["BASE"])
+
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -266,9 +333,21 @@ def get_html():
         .coin-filter.active {{ background: #0284c7; color: #ffffff; }}
 
         .trade-card-split {{ background: #0c1527; border: 1px solid #16233b; border-radius: 16px; padding: 18px 20px; margin-bottom: 12px; transition: 0.2s; }}
-        .trade-card-split:hover {{ border-color: #1e293b; }}
         .btn-view-split {{ background: #bef264; color: #000000; border: none; border-radius: 8px; padding: 6px 18px; font-size: 13px; font-weight: 800; cursor: pointer; transition: 0.2s; }}
         .btn-view-split:hover {{ opacity: 0.9; }}
+
+        /* Plans Card Styles (Matching Creddx UI) */
+        .card-plan {{ background: #0c1527; border: 1px solid #16233b; border-radius: 24px; padding: 26px 24px; margin-bottom: 24px; position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.4); }}
+        .plan-sub-title {{ font-size: 11px; font-weight: 800; letter-spacing: 0.8px; color: #94a3b8; text-transform: uppercase; margin-bottom: 4px; }}
+        .plan-price-title {{ font-size: 30px; font-weight: 900; color: #ffffff; }}
+        .plan-duration {{ font-size: 15px; color: #94a3b8; font-weight: 500; }}
+        .plan-badge-tag {{ background: #064e3b; color: #34d399; border: 1px solid #059669; padding: 4px 12px; border-radius: 14px; font-size: 11px; font-weight: 800; }}
+        .plan-feature-list {{ margin: 20px 0 24px; display: flex; flex-direction: column; gap: 14px; }}
+        .plan-feature-item {{ display: flex; align-items: flex-start; gap: 12px; font-size: 13px; }}
+        .feature-check {{ width: 20px; height: 20px; border-radius: 50%; background: #064e3b; color: #34d399; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; flex-shrink: 0; margin-top: 2px; }}
+        .btn-activate-plan {{ width: 100%; padding: 14px; border-radius: 12px; font-size: 14px; font-weight: 800; border: none; cursor: pointer; background: #0284c7; color: #ffffff; transition: 0.2s; }}
+        .btn-activate-plan:hover {{ background: #0369a1; }}
+        .btn-activate-plan.active-badge {{ background: #131b2e; color: #34d399; border: 1px solid #059669; cursor: default; }}
 
         .wallet-card {{ background: #0c1527; border: 1px solid #16233b; border-radius: 16px; padding: 18px 20px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }}
         .status-badge {{ background: #064e3b; color: #34d399; border: 1px solid #059669; padding: 4px 12px; border-radius: 16px; font-size: 11px; font-weight: 700; display: inline-block; margin-top: 6px; }}
@@ -292,7 +371,6 @@ def get_html():
         .max-pill {{ background: rgba(56,189,248,0.15); border: 1px solid #0284c7; color: #38bdf8; padding: 4px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; }}
         .curr-pill {{ background: #0c1527; border: 1px solid #1e293b; color: #ffffff; padding: 8px 14px; border-radius: 10px; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px; }}
         .swap-divider-btn {{ width: 40px; height: 40px; border-radius: 50%; background: #131b2e; border: 1px solid #1e293b; color: #38bdf8; display: flex; justify-content: center; align-items: center; font-size: 16px; margin: -6px auto; cursor: pointer; position: relative; z-index: 2; transition: 0.2s; }}
-        .swap-divider-btn:hover {{ transform: rotate(180deg); background: #0284c7; color: white; }}
         .calc-breakdown {{ padding: 16px 4px; border-top: 1px solid #16233b; margin-top: 14px; }}
         .breakdown-row {{ display: flex; justify-content: space-between; font-size: 12px; color: #94a3b8; margin-bottom: 8px; }}
 
@@ -307,6 +385,7 @@ def get_html():
     </style>
 </head>
 <body>
+    <!-- Auth Screen -->
     <div id="authOverlay">
         <div class="auth-card">
             <h2 style="color: #38bdf8; font-size: 26px; font-weight: 800; margin-bottom: 6px;">trade.ai</h2>
@@ -332,7 +411,9 @@ def get_html():
         </div>
     </div>
 
+    <!-- Main Platform -->
     <div class="container" id="mainDashboard" style="display:none;">
+        <!-- Top Bar -->
         <div class="top-bar">
             <button class="pill-home" onclick="showTab('tradeLogs')">⚡ trade.ai</button>
             <div style="display: flex; align-items: center; gap: 10px;">
@@ -345,10 +426,11 @@ def get_html():
             </div>
         </div>
 
+        <!-- Navigation Bar -->
         <div class="nav-bar">
             <button class="nav-item" onclick="showTab('tradeLogs')">Home</button>
             <button class="nav-item" onclick="showTab('tradeLogs')">Strategies</button>
-            <button class="nav-item" onclick="openPaymentModal()">Plans</button>
+            <button id="navPlans" class="nav-item" onclick="showTab('plans')">Plans</button>
             <button id="navTradeLogs" class="nav-item active" onclick="showTab('tradeLogs')">Trade Logs</button>
             <button id="navBotWallet" class="nav-item" onclick="showTab('botWallet')">BOT Wallet</button>
             <button id="navOverview" class="nav-item" onclick="showTab('overview')">Overview</button>
@@ -403,7 +485,19 @@ def get_html():
             </div>
         </div>
 
-        <!-- TAB 2: BOT Wallet View -->
+        <!-- TAB 2: Plans View (Matching Screenshot: Premium 8k, Standard 999, Base 400) -->
+        <div id="viewPlans" style="display: none;">
+            <div style="margin-bottom: 22px; text-align: center;">
+                <h2 style="font-size: 24px; font-weight: 800; color: #ffffff; margin-bottom: 6px;">Choose Your Trading Plan</h2>
+                <p style="font-size: 13px; color: #94a3b8;">
+                    Unlock automated AI trading strategies, risk management, and profit optimization.
+                </p>
+            </div>
+
+            {plans_html}
+        </div>
+
+        <!-- TAB 3: BOT Wallet View -->
         <div id="viewBotWallet" style="display: none;">
             <div class="card-position" style="padding: 22px 24px; margin-bottom: 20px;">
                 <div class="card-glow"></div>
@@ -429,6 +523,7 @@ def get_html():
                 <button id="pillHistory" class="wallet-action-pill" onclick="switchWalletTab('history')">⏱ HISTORY</button>
             </div>
 
+            <!-- Sub-tab 1: Deposit INR -->
             <div id="walletSubDeposit" style="display: none;">
                 <div class="step-indicator">
                     <span class="step-circle">1</span> <span>PAYMENT DETAILS</span> ────── <span class="step-circle" style="background:#1e293b; color:#94a3b8;">2</span> <span>SUBMIT PROOF</span>
@@ -446,16 +541,17 @@ def get_html():
                 <div class="payment-method-card">
                     <div style="text-align: center; margin: 12px 0;">
                         <div style="background: white; padding: 8px; border-radius: 12px; display: inline-block;">
-                            <img src="{qr_image_url}" alt="UPI QR Code" style="width: 160px; height: 160px; display: block;">
+                            <img id="depositQrImg" src="" alt="UPI QR Code" style="width: 160px; height: 160px; display: block;">
                         </div>
                         <div style="font-family: monospace; color: #38bdf8; font-size: 13px; margin-top: 8px;">UPI ID: {MY_UPI_ID}</div>
                     </div>
-                    <a href="{upi_intent_url}" class="pill-btn-wide" style="background: #0284c7; color: white; text-decoration: none; font-weight: 700; margin-bottom: 14px; text-align: center;">📱 Open Google Pay / PhonePe (Pay ₹999)</a>
+                    <a id="depositIntentBtn" href="#" class="pill-btn-wide" style="background: #0284c7; color: white; text-decoration: none; font-weight: 700; margin-bottom: 14px; text-align: center;">📱 Pay via Any UPI App (GPay/PhonePe)</a>
                     <input id="depositUtrInput" type="text" class="input-box" placeholder="Enter 12-digit UTR No. after payment">
                     <button class="btn-action" style="background: #10b981;" onclick="submitDepositUtr()">Submit Proof & Verify</button>
                 </div>
             </div>
 
+            <!-- Sub-tab 2: Withdraw INR -->
             <div id="walletSubWithdraw">
                 <h2 style="font-size: 22px; font-weight: 800; color: #ffffff; margin-bottom: 6px;">Withdraw Funds (INR)</h2>
                 <p style="font-size: 12px; color: #94a3b8; margin-bottom: 16px;">Request an instant withdrawal in Indian Rupees directly to your verified Bank Account or UPI.</p>
@@ -475,6 +571,7 @@ def get_html():
                 </div>
             </div>
 
+            <!-- Sub-tab 3: Conversion -->
             <div id="walletSubConversion" style="display: none;">
                 <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 6px;">
                     <div style="background: #064e3b; border: 1px solid #059669; width: 36px; height: 36px; border-radius: 10px; display: flex; justify-content: center; align-items: center; font-size: 18px;">🤖</div>
@@ -543,13 +640,14 @@ def get_html():
                 </div>
             </div>
 
+            <!-- Sub-tab 4: History -->
             <div id="walletSubHistory" style="display: none;">
                 <h2 style="font-size: 20px; font-weight: 800; color: #ffffff; margin-bottom: 14px;">Wallet Transaction Logs</h2>
                 {wallet_html}
             </div>
         </div>
 
-        <!-- TAB 3: Overview / Bot Wallet Activity -->
+        <!-- TAB 4: Overview / Bot Wallet Activity -->
         <div id="viewOverview" style="display: none;">
             <div style="margin-bottom: 20px;">
                 <h2 style="font-size: 24px; font-weight: 800; color: #ffffff; margin-bottom: 6px;">Bot Wallet Activity</h2>
@@ -602,6 +700,28 @@ def get_html():
         </div>
     </div>
 
+    <!-- Dynamic Plan Checkout Modal (UPI QR & UTR Verification) -->
+    <div id="payModal" class="modal">
+        <div class="modal-content">
+            <h3 id="modalPlanTitle" style="color: #38bdf8;">Plan Activation</h3>
+            <p id="modalPlanSubtitle" style="font-size: 12px; color: #94a3b8; margin: 6px 0 14px;">Instant UPI Transfer</p>
+            
+            <div style="background: white; padding: 8px; border-radius: 12px; display: inline-block; margin-bottom: 10px;">
+                <img id="dynamicPlanQrImg" src="" alt="UPI QR" style="width: 170px; height: 170px; display: block;">
+            </div>
+            
+            <div style="color: #38bdf8; font-family: monospace; font-size: 13px; margin-bottom: 12px;">UPI ID: {MY_UPI_ID}</div>
+            <a id="dynamicPlanIntentBtn" href="#" class="pill-btn-wide" style="background: #0284c7; color: #ffffff; font-weight: 700; text-decoration: none;">📱 Pay via Any UPI App (GPay/PhonePe)</a>
+            
+            <div style="border-top: 1px solid #16233b; padding-top: 14px; margin-top: 10px;">
+                <p style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">Payment ke baad 12-digit UTR No. enter karein:</p>
+                <input id="planUtrInput" type="text" class="input-box" placeholder="Enter 12-digit UTR (e.g. 423567890123)">
+                <button class="btn-action" style="background: #10b981;" onclick="submitPlanPayment()">✅ Verify UTR & Activate Plan</button>
+            </div>
+            <button class="btn-close" onclick="closePaymentModal()">Close</button>
+        </div>
+    </div>
+
     <!-- Profile Modal -->
     <div id="profileModal" class="modal">
         <div class="modal-content">
@@ -613,30 +733,20 @@ def get_html():
         </div>
     </div>
 
-    <!-- Plans Modal -->
-    <div id="payModal" class="modal">
-        <div class="modal-content">
-            <h3 style="color: #38bdf8;">30 Days Pro Trading Plan</h3>
-            <p style="font-size: 12px; color: #94a3b8; margin: 6px 0 14px;">Unlimited 24/7 AI Bot Trading</p>
-            <div style="background: white; padding: 8px; border-radius: 12px; display: inline-block; margin-bottom: 10px;">
-                <img src="{qr_image_url}" alt="UPI QR" style="width: 170px; height: 170px; display: block;">
-            </div>
-            <div style="color: #38bdf8; font-family: monospace; font-size: 13px; margin-bottom: 12px;">UPI: {MY_UPI_ID}</div>
-            <a href="{upi_intent_url}" class="pill-btn-wide" style="background: #0284c7; color: #ffffff; font-weight: 700; text-decoration: none;">📱 Pay ₹999 via Any UPI App</a>
-            <input id="utrInput" type="text" class="input-box" placeholder="Enter 12-digit UTR">
-            <button class="btn-action" style="background: #10b981;" onclick="submitPayment()">Verify & Activate</button>
-            <button class="btn-close" onclick="closePaymentModal()">Close</button>
-        </div>
-    </div>
-
     <script>
         const CURRENT_RATE = {USDT_INR_RATE};
         const MIN_WITHDRAW = {MIN_WITHDRAW_INR};
         const MAX_WITHDRAW = {MAX_WITHDRAW_INR};
+        const UPI_ID = "{MY_UPI_ID}";
         let currentUsdtBal = {balance};
         let currentInrBal = {inr_balance};
         let swapDirection = 'USDT_TO_INR';
         let isBalanceHidden = false;
+
+        let selectedPlanId = 'STANDARD';
+        let selectedPlanPrice = 999;
+        let selectedPlanDays = 30;
+        let selectedPlanName = 'STANDARD PACKAGE';
 
         const origValues = {{
             principal: '1000.00 USDT',
@@ -653,8 +763,31 @@ def get_html():
                 document.getElementById('mainDashboard').style.display = 'block';
                 const initial = saved.charAt(0).toUpperCase();
                 document.getElementById('avatarBtn').innerText = initial;
+                checkUserPlanStatus(saved);
             }}
         }});
+
+        async function checkUserPlanStatus(email) {{
+            try {{
+                const res = await fetch('/api/user-status', {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json' }},
+                    body: JSON.stringify({{ email: email }})
+                }});
+                const data = await res.json();
+                if (data.status === 'success' && data.user) {{
+                    const activePlan = data.user.plan || 'STANDARD';
+                    const daysLeft = data.user.days_left || 30;
+                    
+                    const btn = document.getElementById('planBtn_' + activePlan);
+                    if (btn) {{
+                        btn.innerText = 'PLAN ACTIVE • ' + daysLeft + 'D LEFT';
+                        btn.classList.add('active-badge');
+                        btn.onclick = null;
+                    }}
+                }}
+            }} catch(e) {{}}
+        }}
 
         function toggleEyeVisibility() {{
             isBalanceHidden = !isBalanceHidden;
@@ -687,14 +820,19 @@ def get_html():
 
         function showTab(tab) {{
             document.getElementById('viewTradeLogs').style.display = 'none';
+            document.getElementById('viewPlans').style.display = 'none';
             document.getElementById('viewBotWallet').style.display = 'none';
             document.getElementById('viewOverview').style.display = 'none';
             
             document.getElementById('navTradeLogs').classList.remove('active');
+            document.getElementById('navPlans').classList.remove('active');
             document.getElementById('navBotWallet').classList.remove('active');
             document.getElementById('navOverview').classList.remove('active');
 
-            if (tab === 'botWallet') {{
+            if (tab === 'plans') {{
+                document.getElementById('viewPlans').style.display = 'block';
+                document.getElementById('navPlans').classList.add('active');
+            }} else if (tab === 'botWallet') {{
                 document.getElementById('viewBotWallet').style.display = 'block';
                 document.getElementById('navBotWallet').classList.add('active');
                 switchWalletTab('withdraw');
@@ -723,6 +861,7 @@ def get_html():
                 document.getElementById('pillWithdraw').classList.add('active');
             }} else if (subTab === 'deposit') {{
                 document.getElementById('walletSubDeposit').style.display = 'block';
+                updateDepositQr(999);
                 document.getElementById('pillDeposit').classList.add('active');
             }} else if (subTab === 'history') {{
                 document.getElementById('walletSubHistory').style.display = 'block';
@@ -748,6 +887,69 @@ def get_html():
                     r.style.display = 'none';
                 }}
             }});
+        }}
+
+        // Dynamic Plan Checkout Modal
+        function openPlanCheckout(planId, price, name, days) {{
+            selectedPlanId = planId;
+            selectedPlanPrice = price;
+            selectedPlanDays = days;
+            selectedPlanName = name;
+
+            document.getElementById('modalPlanTitle').innerText = name + ' (₹' + price.toLocaleString() + ')';
+            document.getElementById('modalPlanSubtitle').innerText = 'Unlimited AI Bot Access for ' + days + ' Days';
+            
+            const upiUrl = 'upi://pay?pa=' + UPI_ID + '&pn=trade.ai&am=' + price + '&cu=INR&tn=' + encodeURIComponent(name);
+            const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + encodeURIComponent(upiUrl);
+            
+            document.getElementById('dynamicPlanQrImg').src = qrUrl;
+            const intentBtn = document.getElementById('dynamicPlanIntentBtn');
+            intentBtn.href = upiUrl;
+            intentBtn.innerText = '📱 Pay ₹' + price.toLocaleString() + ' via GPay / PhonePe';
+
+            document.getElementById('planUtrInput').value = '';
+            document.getElementById('payModal').style.display = 'flex';
+        }}
+
+        function updateDepositQr(amount) {{
+            const upiUrl = 'upi://pay?pa=' + UPI_ID + '&pn=trade.ai&am=' + amount + '&cu=INR&tn=Deposit';
+            const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + encodeURIComponent(upiUrl);
+            document.getElementById('depositQrImg').src = qrUrl;
+            document.getElementById('depositIntentBtn').href = upiUrl;
+        }}
+
+        function openPaymentModal() {{
+            showTab('plans');
+        }}
+        function closePaymentModal() {{
+            document.getElementById('payModal').style.display = 'none';
+        }}
+
+        async function submitPlanPayment() {{
+            const utr = document.getElementById('planUtrInput').value.trim();
+            if (!utr || utr.length < 6) {{
+                alert('❌ Kripya valid 12-digit UTR / Reference No. enter karein!');
+                return;
+            }}
+            const email = localStorage.getItem('cryptobot_user_email') || 'User';
+            const res = await fetch('/api/verify-plan-utr', {{
+                method: 'POST',
+                headers: {{ 'Content-Type': 'application/json' }},
+                body: JSON.stringify({{
+                    plan_id: selectedPlanId,
+                    plan_name: selectedPlanName,
+                    price: selectedPlanPrice,
+                    days: selectedPlanDays,
+                    utr: utr,
+                    email: email
+                }})
+            }});
+            const data = await res.json();
+            alert(data.message);
+            if (data.status === 'success') {{
+                closePaymentModal();
+                window.location.reload();
+            }}
         }}
 
         async function submitWithdrawalInr() {{
@@ -890,31 +1092,22 @@ def get_html():
 
         function openProfileModal() {{ document.getElementById('profileModal').style.display = 'flex'; }}
         function closeProfileModal() {{ document.getElementById('profileModal').style.display = 'none'; }}
-        function openPaymentModal() {{ document.getElementById('payModal').style.display = 'flex'; }}
-        function closePaymentModal() {{ document.getElementById('payModal').style.display = 'none'; }}
-
-        async function submitPayment() {{
-            const utr = document.getElementById('utrInput').value.trim();
-            const email = localStorage.getItem('cryptobot_user_email') || 'User';
-            const res = await fetch('/subscribe', {{
-                method: 'POST',
-                headers: {{ 'Content-Type': 'application/json' }},
-                body: JSON.stringify({{ utr: utr, email: email }})
-            }});
-            const data = await res.json();
-            alert(data.message);
-            closePaymentModal();
-            window.location.reload();
-        }}
 
         async function submitDepositUtr() {{
             const utr = document.getElementById('depositUtrInput').value.trim();
             if (!utr) {{ alert('Please enter UTR Number!'); return; }}
             const email = localStorage.getItem('cryptobot_user_email') || 'User';
-            const res = await fetch('/subscribe', {{
+            const res = await fetch('/api/verify-plan-utr', {{
                 method: 'POST',
                 headers: {{ 'Content-Type': 'application/json' }},
-                body: JSON.stringify({{ utr: utr, email: email }})
+                body: JSON.stringify({{
+                    plan_id: 'STANDARD',
+                    plan_name: 'STANDARD PACKAGE',
+                    price: 999,
+                    days: 30,
+                    utr: utr,
+                    email: email
+                }})
             }});
             const data = await res.json();
             alert(data.message);
@@ -965,8 +1158,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
             else:
                 db.setdefault("users", {})[email] = {
                     "password": password,
-                    "status": "ACTIVE",
-                    "plan": "Pro Trial",
+                    "status": "INACTIVE",
+                    "plan": "NONE",
+                    "days_left": 0,
                     "created_on": str(datetime.now().date()),
                     "profile": {
                         "name": email.split('@')[0],
@@ -980,6 +1174,47 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.send_header('Content-type', 'application/json')
             self.end_headers()
             self.wfile.write(json.dumps(res).encode('utf-8'))
+
+        elif self.path == '/api/user-status':
+            email = payload.get('email', '').strip().lower()
+            db = load_db()
+            user = db.get("users", {}).get(email, {})
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "success", "user": user}).encode('utf-8'))
+
+        elif self.path == '/api/verify-plan-utr':
+            db = load_db()
+            email = payload.get('email', 'User')
+            utr = payload.get('utr', 'N/A')
+            plan_id = payload.get('plan_id', 'STANDARD')
+            plan_name = payload.get('plan_name', 'STANDARD PACKAGE')
+            price = payload.get('price', 999)
+            days = payload.get('days', 30)
+
+            expiry = (datetime.now() + timedelta(days=days)).strftime("%d %b %Y")
+            
+            if email in db.get("users", {}):
+                db["users"][email]["status"] = "ACTIVE"
+                db["users"][email]["plan"] = plan_id
+                db["users"][email]["days_left"] = days
+                db["users"][email]["expires_on"] = expiry
+
+            db.setdefault("payments", []).append({
+                "email": email,
+                "plan": plan_name,
+                "utr": utr,
+                "amount": price,
+                "days": days,
+                "time": datetime.now().strftime("%Y-%m-%d %H:%M")
+            })
+            save_db(db)
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            msg = f"🎉 Payment Verified!\n\n{plan_name} (₹{price:,}) successfully activate ho gaya hai!\nValidity: {days} Days (Till {expiry})."
+            self.wfile.write(json.dumps({"status": "success", "message": msg}).encode('utf-8'))
 
         elif self.path == '/api/withdraw-inr':
             amount_inr = float(payload.get('amount_inr', 0.0))
@@ -1056,34 +1291,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.send_header('Content-type', 'application/json')
             self.end_headers()
             self.wfile.write(json.dumps(res).encode('utf-8'))
-
-        elif self.path == '/run-bot':
-            result = execute_bot_scan(source="Manual")
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps(result).encode('utf-8'))
-
-        elif self.path == '/subscribe':
-            db = load_db()
-            email = payload.get('email', 'User')
-            utr = payload.get('utr', 'N/A')
-            expiry = (datetime.now() + timedelta(days=30)).strftime("%d %b %Y")
-            if email in db.get("users", {}):
-                db["users"][email]["status"] = "ACTIVE"
-                db["users"][email]["expires_on"] = expiry
-            db.setdefault("payments", []).append({
-                "email": email,
-                "utr": utr,
-                "amount": 999,
-                "time": datetime.now().strftime("%Y-%m-%d %H:%M")
-            })
-            save_db(db)
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            msg = f"🎉 Payment Recorded! 30 Days Pro Plan activated till {expiry}."
-            self.wfile.write(json.dumps({"status": "success", "message": msg}).encode('utf-8'))
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
