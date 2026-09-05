@@ -11,22 +11,20 @@ DB_FILE = 'trades.json'
 coins = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT']
 exchange = ccxt.binance()
 
-# Aapki UPI Details
+# UPI Details
 MY_UPI_ID = "8406012453-2@ibl"
-PAYEE_NAME = "CryptoBot AI"
+PAYEE_NAME = "trade.ai"
 PLAN_PRICE_INR = 999
 
-upi_intent_url = f"upi://pay?pa={MY_UPI_ID}&pn={urllib.parse.quote(PAYEE_NAME)}&am={PLAN_PRICE_INR}&cu=INR&tn={urllib.parse.quote('30 Days Pro Plan')}"
+upi_intent_url = f"upi://pay?pa={MY_UPI_ID}&pn={urllib.parse.quote(PAYEE_NAME)}&am={PLAN_PRICE_INR}&cu=INR&tn={urllib.parse.quote('trade.ai Pro Plan')}"
 qr_image_url = f"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={urllib.parse.quote(upi_intent_url)}"
 
-# 24/7 Auto-Pilot Status State
 autopilot_state = {
     "enabled": True,
-    "last_scan_time": "Initializing...",
-    "last_result": "24/7 Auto-Pilot loop active"
+    "last_scan_time": "Active",
+    "last_result": "Scanning loop online"
 }
 
-# Database Helpers
 def load_db():
     default_expiry = (datetime.now() + timedelta(days=30)).strftime("%d %b %Y")
     if os.path.exists(DB_FILE):
@@ -76,7 +74,6 @@ def save_db(data):
     with open(DB_FILE, 'w') as f:
         json.dump(data, f, indent=4)
 
-# Core Bot Execution Logic
 def execute_bot_scan(source="Manual"):
     db = load_db()
     today_str = str(datetime.now().date())
@@ -137,7 +134,6 @@ def execute_bot_scan(source="Manual"):
         autopilot_state["last_result"] = "Market scanned: No setup yet"
         return {"status": "no_setup", "message": msg}
 
-# 24/7 Background Thread Worker (Scans every 15 minutes)
 def background_autopilot_worker():
     time.sleep(10)
     while True:
@@ -150,7 +146,6 @@ def background_autopilot_worker():
 
 threading.Thread(target=background_autopilot_worker, daemon=True).start()
 
-# HTML Dashboard Page (Creddx.ai UI)
 def get_html():
     data = load_db()
     balance = data.get("balance", 1000.0)
@@ -170,7 +165,7 @@ def get_html():
                 </div>
             </div>
             <div style="text-align: right;">
-                <div style="color: #bef264; font-size: 15px; font-weight: 700;">+{t.get('profit', 0):.2f} USDT</div>
+                <div style="color: #38bdf8; font-size: 15px; font-weight: 700;">+{t.get('profit', 0):.2f} USDT</div>
                 <div style="color: #34d399; font-size: 11px; font-weight: 600;">PROFIT (+1.5%)</div>
             </div>
         </div>
@@ -184,72 +179,63 @@ def get_html():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Creddx AI - Trade Logs</title>
+    <title>trade.ai - Terminal</title>
     <style>
         * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }}
-        body {{ background: #000000; color: #f8fafc; padding: 18px 12px; }}
+        body {{ background: #060b14; color: #f8fafc; padding: 20px 14px; min-height: 100vh; }}
         .container {{ max-width: 680px; margin: 0 auto; }}
 
-        /* Top Bar */
         .top-bar {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }}
-        .pill-home {{ background: transparent; border: 1px solid #27272a; color: #bef264; border-radius: 20px; padding: 6px 16px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; cursor: pointer; text-decoration: none; }}
-        .live-pill {{ background: #141f12; border: 1px solid #22381b; border-radius: 20px; padding: 5px 12px; font-size: 12px; display: flex; align-items: center; gap: 8px; color: #bef264; font-weight: 700; }}
-        .live-tag {{ background: #22381b; color: #bef264; padding: 2px 6px; border-radius: 6px; font-size: 10px; }}
-        .green-dot {{ width: 8px; height: 8px; border-radius: 50%; background: #a3e635; display: inline-block; box-shadow: 0 0 8px #a3e635; }}
-        .avatar-btn {{ width: 34px; height: 34px; border-radius: 50%; background: #bef264; color: #000; display: flex; justify-content: center; align-items: center; font-weight: 800; font-size: 14px; cursor: pointer; border: none; }}
+        .pill-home {{ background: #0c1527; border: 1px solid #1e293b; color: #38bdf8; border-radius: 20px; padding: 6px 16px; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px; cursor: pointer; text-decoration: none; }}
+        .live-pill {{ background: #0b1a2f; border: 1px solid #133256; border-radius: 20px; padding: 6px 14px; font-size: 12px; display: flex; align-items: center; gap: 8px; color: #38bdf8; font-weight: 700; }}
+        .live-tag {{ background: #0284c7; color: white; padding: 2px 6px; border-radius: 6px; font-size: 10px; font-weight: 800; }}
+        .green-dot {{ width: 8px; height: 8px; border-radius: 50%; background: #10b981; display: inline-block; box-shadow: 0 0 8px #10b981; }}
+        .avatar-btn {{ width: 36px; height: 36px; border-radius: 50%; background: #38bdf8; color: #060b14; display: flex; justify-content: center; align-items: center; font-weight: 800; font-size: 14px; cursor: pointer; border: none; }}
 
-        /* Navbar */
-        .nav-bar {{ background: #0c0d10; border: 1px solid #1a1c23; border-radius: 28px; padding: 6px 12px; display: flex; justify-content: space-between; align-items: center; overflow-x: auto; margin-bottom: 20px; gap: 6px; }}
-        .nav-item {{ color: #71717a; text-decoration: none; font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 20px; white-space: nowrap; cursor: pointer; border: none; background: transparent; }}
-        .nav-item.active {{ background: #bef264; color: #000000; font-weight: 700; }}
+        .nav-bar {{ background: #0c1527; border: 1px solid #16233b; border-radius: 28px; padding: 6px 10px; display: flex; justify-content: space-between; align-items: center; overflow-x: auto; margin-bottom: 20px; gap: 6px; }}
+        .nav-item {{ color: #94a3b8; text-decoration: none; font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 20px; white-space: nowrap; cursor: pointer; border: none; background: transparent; }}
+        .nav-item.active {{ background: #0284c7; color: #ffffff; font-weight: 700; }}
 
-        /* Action Growth Button */
-        .btn-growth {{ background: #bef264; color: #000000; border: none; border-radius: 20px; padding: 10px 20px; font-size: 13px; font-weight: 700; cursor: pointer; margin-bottom: 20px; display: inline-block; transition: 0.2s; }}
-        .btn-growth:hover {{ opacity: 0.9; }}
+        .btn-growth {{ background: #0284c7; color: #ffffff; border: none; border-radius: 20px; padding: 10px 22px; font-size: 13px; font-weight: 700; cursor: pointer; margin-bottom: 20px; display: inline-block; transition: 0.2s; }}
+        .btn-growth:hover {{ background: #0369a1; }}
 
-        /* Open Position Card */
-        .card-position {{ background: #07080a; border: 1px solid #18191f; border-radius: 28px; padding: 28px 24px; position: relative; overflow: hidden; margin-bottom: 32px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }}
-        .card-glow {{ position: absolute; top: -20px; right: -20px; width: 180px; height: 180px; background: radial-gradient(circle, rgba(190,242,100,0.15) 0%, rgba(0,0,0,0) 70%); border-radius: 50%; pointer-events: none; }}
-        .card-title {{ font-size: 22px; font-weight: 800; color: #ffffff; margin-bottom: 18px; }}
+        .card-position {{ background: #0c1527; border: 1px solid #16233b; border-radius: 24px; padding: 26px 24px; position: relative; overflow: hidden; margin-bottom: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }}
+        .card-glow {{ position: absolute; top: -30px; right: -30px; width: 200px; height: 200px; background: radial-gradient(circle, rgba(56,189,248,0.18) 0%, rgba(0,0,0,0) 70%); border-radius: 50%; pointer-events: none; }}
+        .card-title {{ font-size: 22px; font-weight: 800; color: #ffffff; margin-bottom: 16px; }}
         
-        .portfolio-label {{ font-size: 11px; font-weight: 700; letter-spacing: 0.8px; color: #71717a; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; font-style: italic; }}
-        .stats-row {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; border-bottom: 1px solid #18191f; padding-bottom: 24px; margin-bottom: 32px; }}
-        .stat-col-title {{ font-size: 10px; color: #71717a; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 2px; }}
+        .portfolio-label {{ font-size: 11px; font-weight: 700; letter-spacing: 0.8px; color: #64748b; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; font-style: italic; }}
+        .stats-row {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; border-bottom: 1px solid #16233b; padding-bottom: 22px; margin-bottom: 26px; }}
+        .stat-col-title {{ font-size: 10px; color: #64748b; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 2px; }}
         .stat-col-val {{ font-size: 13px; font-weight: 700; color: #ffffff; }}
-        .stat-col-val.green {{ color: #bef264; }}
+        .stat-col-val.blue {{ color: #38bdf8; }}
         
-        .no-position {{ text-align: center; color: #52525b; font-size: 16px; font-weight: 500; padding: 20px 0 12px; }}
+        .no-position {{ text-align: center; color: #64748b; font-size: 15px; font-weight: 500; padding: 16px 0 8px; }}
 
-        /* Realized Trade History */
-        .history-title {{ text-align: center; font-size: 20px; font-weight: 800; color: #ffffff; margin-bottom: 18px; }}
-        .pill-btn-wide {{ background: #18181b; border: 1px solid #27272a; border-radius: 14px; padding: 12px; text-align: center; color: #e4e4e7; font-size: 13px; font-weight: 600; margin-bottom: 10px; cursor: pointer; display: block; width: 100%; }}
+        .history-title {{ text-align: center; font-size: 20px; font-weight: 800; color: #ffffff; margin-bottom: 16px; }}
+        .pill-btn-wide {{ background: #0c1527; border: 1px solid #16233b; border-radius: 12px; padding: 12px; text-align: center; color: #cbd5e1; font-size: 13px; font-weight: 600; margin-bottom: 10px; cursor: pointer; display: block; width: 100%; }}
         
         .coin-filter-row {{ display: flex; gap: 8px; margin: 18px 0 14px; overflow-x: auto; }}
-        .coin-filter {{ background: #18181b; border: 1px solid #27272a; border-radius: 12px; padding: 8px 16px; color: #a1a1aa; font-size: 12px; font-weight: 700; cursor: pointer; border: none; }}
-        .coin-filter.active {{ background: #bef264; color: #000000; }}
+        .coin-filter {{ background: #0c1527; border: 1px solid #16233b; border-radius: 10px; padding: 8px 16px; color: #94a3b8; font-size: 12px; font-weight: 700; cursor: pointer; border: none; }}
+        .coin-filter.active {{ background: #0284c7; color: #ffffff; }}
 
-        /* Trade Row Item */
-        .trade-row {{ background: #0c0d10; border: 1px solid #18191f; border-radius: 14px; padding: 14px 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }}
-        .coin-badge {{ background: #141f12; color: #bef264; border: 1px solid #22381b; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 800; }}
+        .trade-row {{ background: #0c1527; border: 1px solid #16233b; border-radius: 14px; padding: 14px 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }}
+        .coin-badge {{ background: #0b1a2f; color: #38bdf8; border: 1px solid #133256; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 800; }}
 
-        /* Modal Styles */
-        .modal {{ display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); justify-content: center; align-items: center; z-index: 100; padding: 16px; }}
-        .modal-content {{ background: #0c0d10; border: 1px solid #27272a; border-radius: 20px; width: 100%; max-width: 420px; padding: 24px; text-align: center; }}
-        .input-box {{ width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #27272a; background: #000; color: white; margin-bottom: 10px; font-size: 14px; }}
-        .btn-green {{ background: #bef264; color: #000; border: none; width: 100%; padding: 12px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; }}
-        .btn-close {{ background: transparent; color: #71717a; border: none; margin-top: 10px; cursor: pointer; font-size: 13px; }}
+        .modal {{ display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(6,11,20,0.92); justify-content: center; align-items: center; z-index: 100; padding: 16px; }}
+        .modal-content {{ background: #0c1527; border: 1px solid #1e293b; border-radius: 20px; width: 100%; max-width: 420px; padding: 24px; text-align: center; }}
+        .input-box {{ width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #1e293b; background: #060b14; color: white; margin-bottom: 10px; font-size: 14px; }}
+        .btn-action {{ background: #0284c7; color: #ffffff; border: none; width: 100%; padding: 12px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; }}
+        .btn-close {{ background: transparent; color: #64748b; border: none; margin-top: 10px; cursor: pointer; font-size: 13px; }}
 
-        /* Auth Screen */
-        #authOverlay {{ position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 99; display: flex; justify-content: center; align-items: center; padding: 16px; }}
-        .auth-card {{ background: #0c0d10; border: 1px solid #1a1c23; border-radius: 20px; padding: 28px 24px; width: 100%; max-width: 380px; text-align: center; }}
+        #authOverlay {{ position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #060b14; z-index: 99; display: flex; justify-content: center; align-items: center; padding: 16px; }}
+        .auth-card {{ background: #0c1527; border: 1px solid #16233b; border-radius: 20px; padding: 28px 24px; width: 100%; max-width: 380px; text-align: center; }}
     </style>
 </head>
 <body>
-    <!-- Auth Screen -->
     <div id="authOverlay">
         <div class="auth-card">
-            <h2 style="color: #bef264; font-size: 24px; font-weight: 800; margin-bottom: 6px;">creddx.ai</h2>
-            <p style="font-size: 12px; color: #71717a; margin-bottom: 20px;">Automated Crypto Trading Intelligence</p>
+            <h2 style="color: #38bdf8; font-size: 26px; font-weight: 800; margin-bottom: 6px;">trade.ai</h2>
+            <p style="font-size: 12px; color: #94a3b8; margin-bottom: 20px;">Automated Crypto Trading Intelligence</p>
 
             <div style="display: flex; gap: 8px; margin-bottom: 16px;">
                 <button id="tabLogin" class="coin-filter active" style="flex:1;" onclick="switchAuthTab('login')">Login</button>
@@ -259,23 +245,21 @@ def get_html():
             <div id="loginForm">
                 <input id="loginEmail" type="email" class="input-box" placeholder="Gmail Address">
                 <input id="loginPassword" type="password" class="input-box" placeholder="Password">
-                <button class="btn-green" onclick="handleLogin()">Login to Terminal</button>
-                <p style="font-size: 11px; color: #52525b; margin-top: 12px;">Admin: admin@cryptobot.com / admin123</p>
+                <button class="btn-action" onclick="handleLogin()">Login to Terminal</button>
+                <p style="font-size: 11px; color: #64748b; margin-top: 12px;">Admin: admin@cryptobot.com / admin123</p>
             </div>
 
             <div id="signupForm" style="display: none;">
                 <input id="signupEmail" type="email" class="input-box" placeholder="Enter Gmail Address">
                 <input id="signupPassword" type="password" class="input-box" placeholder="Create Password">
-                <button class="btn-green" onclick="handleDirectSignup()">Create Account</button>
+                <button class="btn-action" style="background: #10b981;" onclick="handleDirectSignup()">Create Account</button>
             </div>
         </div>
     </div>
 
-    <!-- Main Creddx Platform -->
     <div class="container" id="mainDashboard" style="display:none;">
-        <!-- Top Bar -->
         <div class="top-bar">
-            <button class="pill-home" onclick="window.location.reload()">⌂ Home</button>
+            <button class="pill-home" onclick="window.location.reload()">⚡ trade.ai</button>
             <div style="display: flex; align-items: center; gap: 10px;">
                 <div class="live-pill">
                     <span class="live-tag">LIVE</span>
@@ -286,7 +270,6 @@ def get_html():
             </div>
         </div>
 
-        <!-- Navigation Bar -->
         <div class="nav-bar">
             <button class="nav-item">Home</button>
             <button class="nav-item">Strategies</button>
@@ -297,10 +280,8 @@ def get_html():
             <button class="nav-item" onclick="logoutUser()">Logout</button>
         </div>
 
-        <!-- Action Button -->
         <button class="btn-growth" onclick="triggerScan()">View Balance Growth & Run Scan</button>
 
-        <!-- Open Position Card -->
         <div class="card-position">
             <div class="card-glow"></div>
             <div class="card-title">Open Position</div>
@@ -309,33 +290,31 @@ def get_html():
             <div class="stats-row">
                 <div>
                     <div class="stat-col-title">PRINCIPAL ▾</div>
-                    <div class="stat-col-val">1000.00 <span style="font-size: 10px; color:#71717a;">USDT</span></div>
+                    <div class="stat-col-val">1000.00 <span style="font-size: 10px; color:#64748b;">USDT</span></div>
                 </div>
                 <div>
                     <div class="stat-col-title">E. PNL ▾</div>
-                    <div class="stat-col-val green">{profit_sign}{profit:.2f}</div>
+                    <div class="stat-col-val blue">{profit_sign}{profit:.2f}</div>
                 </div>
                 <div>
                     <div class="stat-col-title">PNL ▾</div>
-                    <div class="stat-col-val green">{profit_sign}{profit:.2f} <span style="font-size: 10px;">USDT</span></div>
+                    <div class="stat-col-val blue">{profit_sign}{profit:.2f} <span style="font-size: 10px;">USDT</span></div>
                 </div>
                 <div>
                     <div class="stat-col-title">CURRENT</div>
-                    <div class="stat-col-val">{balance:.2f} <span style="font-size: 10px; color:#71717a;">USDT</span></div>
+                    <div class="stat-col-val">{balance:.2f} <span style="font-size: 10px; color:#64748b;">USDT</span></div>
                 </div>
             </div>
 
-            <div class="no-position">No open positions found.</div>
+            <div class="no-position">No open positions found. (2/2 Daily Limit Completed)</div>
         </div>
 
-        <!-- Realized Trade History -->
         <div>
             <div class="history-title">Realized Trade History</div>
 
             <button class="pill-btn-wide">Compare with BTC & ETH</button>
             <button class="pill-btn-wide" onclick="alert('Downloading Trade PDF Report...')">Download Trade PDF</button>
 
-            <!-- Coin Filters -->
             <div class="coin-filter-row">
                 <button class="coin-filter active" onclick="filterCoin('ALL', this)">ALL</button>
                 <button class="coin-filter" onclick="filterCoin('ETH-USDT', this)">ETH-USDT</button>
@@ -349,29 +328,27 @@ def get_html():
         </div>
     </div>
 
-    <!-- Profile Modal -->
     <div id="profileModal" class="modal">
         <div class="modal-content">
-            <h3 style="color: #bef264; margin-bottom: 14px;">User Profile & Settings</h3>
+            <h3 style="color: #38bdf8; margin-bottom: 14px;">User Profile & Settings</h3>
             <input id="profileName" type="text" class="input-box" placeholder="Full Name">
             <input id="profilePhone" type="tel" class="input-box" placeholder="Phone Number">
-            <button class="btn-green" onclick="saveProfile()">Save Changes</button>
+            <button class="btn-action" onclick="saveProfile()">Save Changes</button>
             <button class="btn-close" onclick="closeProfileModal()">Close</button>
         </div>
     </div>
 
-    <!-- Plans & Payment Modal (UPI) -->
     <div id="payModal" class="modal">
         <div class="modal-content">
-            <h3 style="color: #bef264;">30 Days Pro Trading Plan</h3>
-            <p style="font-size: 12px; color: #71717a; margin: 6px 0 14px;">Unlimited 24/7 AI Bot Trading</p>
+            <h3 style="color: #38bdf8;">30 Days Pro Trading Plan</h3>
+            <p style="font-size: 12px; color: #94a3b8; margin: 6px 0 14px;">Unlimited 24/7 AI Bot Trading</p>
             <div style="background: white; padding: 8px; border-radius: 12px; display: inline-block; margin-bottom: 10px;">
                 <img src="{qr_image_url}" alt="UPI QR" style="width: 170px; height: 170px; display: block;">
             </div>
-            <div style="color: #bef264; font-family: monospace; font-size: 13px; margin-bottom: 12px;">UPI: {MY_UPI_ID}</div>
-            <a href="{upi_intent_url}" class="pill-btn-wide" style="background: #bef264; color: #000; font-weight: 700; text-decoration: none;">📱 Pay ₹999 via Any UPI App</a>
+            <div style="color: #38bdf8; font-family: monospace; font-size: 13px; margin-bottom: 12px;">UPI: {MY_UPI_ID}</div>
+            <a href="{upi_intent_url}" class="pill-btn-wide" style="background: #0284c7; color: #ffffff; font-weight: 700; text-decoration: none;">📱 Pay ₹999 via Any UPI App</a>
             <input id="utrInput" type="text" class="input-box" placeholder="Enter 12-digit UTR">
-            <button class="btn-green" onclick="submitPayment()">Verify & Activate</button>
+            <button class="btn-action" style="background: #10b981;" onclick="submitPayment()">Verify & Activate</button>
             <button class="btn-close" onclick="closePaymentModal()">Close</button>
         </div>
     </div>
@@ -570,7 +547,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     server = HTTPServer(('0.0.0.0', port), DashboardHandler)
-    print(f"🚀 Server active on port {port}")
+    print(f"🚀 trade.ai server active on port {port}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
