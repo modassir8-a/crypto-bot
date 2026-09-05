@@ -11,7 +11,6 @@ DB_FILE = 'trades.json'
 coins = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT']
 exchange = ccxt.binance()
 
-# Aapki UPI Details
 MY_UPI_ID = "8406012453-2@ibl"
 PAYEE_NAME = "trade.ai"
 PLAN_PRICE_INR = 999
@@ -19,6 +18,9 @@ USDT_INR_RATE = 91.50
 
 MIN_WITHDRAW_INR = 1000.0
 MAX_WITHDRAW_INR = 10000.0
+
+ADMIN_COMMISSION_PCT = 0.15
+USER_SHARE_PCT = 0.85
 
 upi_intent_url = f"upi://pay?pa={MY_UPI_ID}&pn={urllib.parse.quote(PAYEE_NAME)}&am={PLAN_PRICE_INR}&cu=INR&tn={urllib.parse.quote('trade.ai Bot Deposit')}"
 qr_image_url = f"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={urllib.parse.quote(upi_intent_url)}"
@@ -29,7 +31,6 @@ autopilot_state = {
     "last_result": "Scanning loop online"
 }
 
-# Database Helpers
 def load_db():
     default_expiry = (datetime.now() + timedelta(days=30)).strftime("%d %b %Y")
     real_initial_activity = [
@@ -79,7 +80,6 @@ def save_db(data):
     with open(DB_FILE, 'w') as f:
         json.dump(data, f, indent=4)
 
-# Core Bot Execution Logic
 def execute_bot_scan(source="Manual"):
     db = load_db()
     today_str = str(datetime.now().date())
@@ -118,7 +118,7 @@ def execute_bot_scan(source="Manual"):
             clean_coin_name = coin.replace('/', '-')
             new_trade = {
                 "id": len(db["trades"]) + 1,
-                "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "time": datetime.now().strftime("%m/%d/%Y, %I:%M:%S %p"),
                 "coin": clean_coin_name,
                 "entry_price": round(buy_price, 2),
                 "target_price": round(target_price, 2),
@@ -152,7 +152,6 @@ def background_autopilot_worker():
 
 threading.Thread(target=background_autopilot_worker, daemon=True).start()
 
-# HTML Dashboard Page
 def get_html():
     data = load_db()
     balance = data.get("balance", 1000.0)
@@ -163,18 +162,34 @@ def get_html():
     trades_html = ""
     for t in reversed(data.get("trades", [])):
         c = t.get('coin', '').replace('/', '-').upper()
+        total_p = t.get('profit', 1.50)
+        admin_s = total_p * ADMIN_COMMISSION_PCT
+        user_s = total_p * USER_SHARE_PCT
+        open_p = t.get('entry_price', 0.0)
+        close_p = t.get('target_price', 0.0)
+        time_s = t.get('time', '')
+
         trades_html += f"""
-        <div class="trade-row" data-coin="{c}">
-            <div style="display: flex; align-items: center; gap: 12px;">
-                <span class="coin-badge">{c}</span>
+        <div class="trade-card-split" data-coin="{c}">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                <span style="font-size: 16px;">💎</span>
+                <strong style="color: #f8fafc; font-size: 15px;">{c} ---</strong>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 13px; margin-bottom: 14px;">
                 <div>
-                    <strong style="color: #f8fafc; font-size: 14px;">Entry: ${t.get('entry_price')}</strong>
-                    <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Target: ${t.get('target_price')} • {t.get('time', '')}</div>
+                    <div style="color: #94a3b8; font-size: 12px;">Open Price: <span style="color:#ffffff;">${open_p}</span></div>
+                    <div style="color: #34d399; font-weight: 700; margin-top: 4px;">Total PnL: {total_p:.2f} PnL</div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="color: #94a3b8; font-size: 12px;">Close Price: <span style="color:#ffffff;">${close_p}</span></div>
+                    <div style="color: #38bdf8; font-weight: 700; margin-top: 4px;">Your PnL: {user_s:.2f} PnL</div>
                 </div>
             </div>
-            <div style="text-align: right;">
-                <div style="color: #38bdf8; font-size: 15px; font-weight: 700;">+{t.get('profit', 0):.2f} USDT</div>
-                <div style="color: #34d399; font-size: 11px; font-weight: 600;">PROFIT (+1.5%)</div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #16233b; padding-top: 10px;">
+                <span style="font-size: 11px; color: #64748b;">{time_s}</span>
+                <button class="btn-view-split" onclick="openProfitSplitModal({user_s:.6f}, {admin_s:.6f})">View</button>
             </div>
         </div>
         """
@@ -249,8 +264,11 @@ def get_html():
         .coin-filter-row {{ display: flex; gap: 8px; margin: 16px 0 16px; overflow-x: auto; }}
         .coin-filter {{ background: #0c1527; border: 1px solid #16233b; border-radius: 10px; padding: 8px 16px; color: #94a3b8; font-size: 12px; font-weight: 700; cursor: pointer; border: none; }}
         .coin-filter.active {{ background: #0284c7; color: #ffffff; }}
-        .trade-row {{ background: #0c1527; border: 1px solid #16233b; border-radius: 14px; padding: 14px 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }}
-        .coin-badge {{ background: #0b1a2f; color: #38bdf8; border: 1px solid #133256; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 800; }}
+
+        .trade-card-split {{ background: #0c1527; border: 1px solid #16233b; border-radius: 16px; padding: 18px 20px; margin-bottom: 12px; transition: 0.2s; }}
+        .trade-card-split:hover {{ border-color: #1e293b; }}
+        .btn-view-split {{ background: #bef264; color: #000000; border: none; border-radius: 8px; padding: 6px 18px; font-size: 13px; font-weight: 800; cursor: pointer; transition: 0.2s; }}
+        .btn-view-split:hover {{ opacity: 0.9; }}
 
         .wallet-card {{ background: #0c1527; border: 1px solid #16233b; border-radius: 16px; padding: 18px 20px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }}
         .status-badge {{ background: #064e3b; color: #34d399; border: 1px solid #059669; padding: 4px 12px; border-radius: 16px; font-size: 11px; font-weight: 700; display: inline-block; margin-top: 6px; }}
@@ -274,6 +292,7 @@ def get_html():
         .max-pill {{ background: rgba(56,189,248,0.15); border: 1px solid #0284c7; color: #38bdf8; padding: 4px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; }}
         .curr-pill {{ background: #0c1527; border: 1px solid #1e293b; color: #ffffff; padding: 8px 14px; border-radius: 10px; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px; }}
         .swap-divider-btn {{ width: 40px; height: 40px; border-radius: 50%; background: #131b2e; border: 1px solid #1e293b; color: #38bdf8; display: flex; justify-content: center; align-items: center; font-size: 16px; margin: -6px auto; cursor: pointer; position: relative; z-index: 2; transition: 0.2s; }}
+        .swap-divider-btn:hover {{ transform: rotate(180deg); background: #0284c7; color: white; }}
         .calc-breakdown {{ padding: 16px 4px; border-top: 1px solid #16233b; margin-top: 14px; }}
         .breakdown-row {{ display: flex; justify-content: space-between; font-size: 12px; color: #94a3b8; margin-bottom: 8px; }}
 
@@ -288,7 +307,6 @@ def get_html():
     </style>
 </head>
 <body>
-    <!-- Auth Screen -->
     <div id="authOverlay">
         <div class="auth-card">
             <h2 style="color: #38bdf8; font-size: 26px; font-weight: 800; margin-bottom: 6px;">trade.ai</h2>
@@ -314,9 +332,7 @@ def get_html():
         </div>
     </div>
 
-    <!-- Main Platform -->
     <div class="container" id="mainDashboard" style="display:none;">
-        <!-- Top Bar -->
         <div class="top-bar">
             <button class="pill-home" onclick="showTab('tradeLogs')">⚡ trade.ai</button>
             <div style="display: flex; align-items: center; gap: 10px;">
@@ -329,7 +345,6 @@ def get_html():
             </div>
         </div>
 
-        <!-- Navigation Bar -->
         <div class="nav-bar">
             <button class="nav-item" onclick="showTab('tradeLogs')">Home</button>
             <button class="nav-item" onclick="showTab('tradeLogs')">Strategies</button>
@@ -342,7 +357,6 @@ def get_html():
 
         <!-- TAB 1: Trade Logs View -->
         <div id="viewTradeLogs">
-            <!-- Open Position Card with Working Eye Button -->
             <div class="card-position">
                 <div class="card-glow"></div>
                 <div class="card-title">Open Position</div>
@@ -376,7 +390,6 @@ def get_html():
             <div>
                 <div class="history-title">Realized Trade History</div>
 
-                <!-- Corrected Coin Filter Row -->
                 <div class="coin-filter-row">
                     <button class="coin-filter active" onclick="filterCoin('ALL', this)">ALL</button>
                     <button class="coin-filter" onclick="filterCoin('ETH-USDT', this)">ETH-USDT</button>
@@ -416,7 +429,6 @@ def get_html():
                 <button id="pillHistory" class="wallet-action-pill" onclick="switchWalletTab('history')">⏱ HISTORY</button>
             </div>
 
-            <!-- Sub-tab 1: Deposit INR -->
             <div id="walletSubDeposit" style="display: none;">
                 <div class="step-indicator">
                     <span class="step-circle">1</span> <span>PAYMENT DETAILS</span> ────── <span class="step-circle" style="background:#1e293b; color:#94a3b8;">2</span> <span>SUBMIT PROOF</span>
@@ -438,13 +450,12 @@ def get_html():
                         </div>
                         <div style="font-family: monospace; color: #38bdf8; font-size: 13px; margin-top: 8px;">UPI ID: {MY_UPI_ID}</div>
                     </div>
-                    <a href="{upi_intent_url}" class="pill-btn-wide" style="background: #0284c7; color: white; text-decoration: none; font-weight: 700; margin-bottom: 14px;">📱 Open Google Pay / PhonePe (Pay ₹999)</a>
+                    <a href="{upi_intent_url}" class="pill-btn-wide" style="background: #0284c7; color: white; text-decoration: none; font-weight: 700; margin-bottom: 14px; text-align: center;">📱 Open Google Pay / PhonePe (Pay ₹999)</a>
                     <input id="depositUtrInput" type="text" class="input-box" placeholder="Enter 12-digit UTR No. after payment">
                     <button class="btn-action" style="background: #10b981;" onclick="submitDepositUtr()">Submit Proof & Verify</button>
                 </div>
             </div>
 
-            <!-- Sub-tab 2: Withdraw INR (Limits: Min ₹1,000, Max ₹10,000) -->
             <div id="walletSubWithdraw">
                 <h2 style="font-size: 22px; font-weight: 800; color: #ffffff; margin-bottom: 6px;">Withdraw Funds (INR)</h2>
                 <p style="font-size: 12px; color: #94a3b8; margin-bottom: 16px;">Request an instant withdrawal in Indian Rupees directly to your verified Bank Account or UPI.</p>
@@ -464,7 +475,6 @@ def get_html():
                 </div>
             </div>
 
-            <!-- Sub-tab 3: Conversion (Exact Creddx UI) -->
             <div id="walletSubConversion" style="display: none;">
                 <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 6px;">
                     <div style="background: #064e3b; border: 1px solid #059669; width: 36px; height: 36px; border-radius: 10px; display: flex; justify-content: center; align-items: center; font-size: 18px;">🤖</div>
@@ -533,14 +543,13 @@ def get_html():
                 </div>
             </div>
 
-            <!-- Sub-tab 4: History -->
             <div id="walletSubHistory" style="display: none;">
                 <h2 style="font-size: 20px; font-weight: 800; color: #ffffff; margin-bottom: 14px;">Wallet Transaction Logs</h2>
                 {wallet_html}
             </div>
         </div>
 
-        <!-- TAB 3: Overview / Bot Wallet Activity (Pure Read-Only History) -->
+        <!-- TAB 3: Overview / Bot Wallet Activity -->
         <div id="viewOverview" style="display: none;">
             <div style="margin-bottom: 20px;">
                 <h2 style="font-size: 24px; font-weight: 800; color: #ffffff; margin-bottom: 6px;">Bot Wallet Activity</h2>
@@ -562,6 +571,33 @@ def get_html():
 
             <div id="walletActivityList">
                 {wallet_html}
+            </div>
+        </div>
+    </div>
+
+    <!-- Profit Split Applied Modal -->
+    <div id="splitModal" class="modal">
+        <div class="modal-content" style="max-width: 380px; text-align: left; padding: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="font-size: 17px; color: #ffffff; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+                    💡 Profit Split Applied
+                </h3>
+                <span onclick="closeProfitSplitModal()" style="color: #94a3b8; font-size: 20px; cursor: pointer; font-weight: 700;">✕</span>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 14px; font-size: 14px; margin-bottom: 10px;">
+                <div style="display: flex; justify-content: space-between; color: #f8fafc;">
+                    <span style="color: #cbd5e1;">Your Share :</span>
+                    <strong style="color: #f8fafc;" id="splitUserShare">$0.000000</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; color: #f8fafc;">
+                    <span style="color: #cbd5e1;">Admin Share :</span>
+                    <strong style="color: #38bdf8;" id="splitAdminShare">$0.000000</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; color: #f8fafc;">
+                    <span style="color: #cbd5e1;">Upline Share :</span>
+                    <strong style="color: #94a3b8;" id="splitUplineShare">$0</strong>
+                </div>
             </div>
         </div>
     </div>
@@ -602,7 +638,6 @@ def get_html():
         let swapDirection = 'USDT_TO_INR';
         let isBalanceHidden = false;
 
-        // Original unmasked values
         const origValues = {{
             principal: '1000.00 USDT',
             epnl: '{profit_sign}{profit:.2f}',
@@ -639,6 +674,15 @@ def get_html():
                 document.getElementById('dispCurrent').innerHTML = origValues.current.replace('USDT', '<span style="font-size: 10px; color:#64748b;">USDT</span>');
                 document.getElementById('headerBalText').innerText = origValues.header;
             }}
+        }}
+
+        function openProfitSplitModal(userShare, adminShare) {{
+            document.getElementById('splitUserShare').innerText = '$' + Number(userShare).toFixed(6);
+            document.getElementById('splitAdminShare').innerText = '$' + Number(adminShare).toFixed(6);
+            document.getElementById('splitModal').style.display = 'flex';
+        }}
+        function closeProfitSplitModal() {{
+            document.getElementById('splitModal').style.display = 'none';
         }}
 
         function showTab(tab) {{
@@ -693,15 +737,13 @@ def get_html():
             document.querySelectorAll('.coin-filter').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             
-            const rows = document.querySelectorAll('.trade-row');
-            let visibleCount = 0;
+            const rows = document.querySelectorAll('.trade-card-split');
             const target = coin.replace(/[^A-Za-z]/g, '').toUpperCase();
 
             rows.forEach(r => {{
                 const rowCoin = (r.getAttribute('data-coin') || '').replace(/[^A-Za-z]/g, '').toUpperCase();
                 if (coin === 'ALL' || rowCoin.includes(target) || target.includes(rowCoin)) {{
-                    r.style.display = 'flex';
-                    visibleCount++;
+                    r.style.display = 'block';
                 }} else {{
                     r.style.display = 'none';
                 }}
