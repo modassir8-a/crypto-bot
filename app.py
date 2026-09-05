@@ -2,6 +2,8 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import ccxt
 import json
 import os
+import threading
+import time
 from datetime import datetime, timedelta
 import urllib.parse
 
@@ -16,6 +18,13 @@ PLAN_PRICE_INR = 999
 
 upi_intent_url = f"upi://pay?pa={MY_UPI_ID}&pn={urllib.parse.quote(PAYEE_NAME)}&am={PLAN_PRICE_INR}&cu=INR&tn={urllib.parse.quote('30 Days Pro Plan')}"
 qr_image_url = f"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={urllib.parse.quote(upi_intent_url)}"
+
+# 24/7 Auto-Pilot Status State
+autopilot_state = {
+    "enabled": True,
+    "last_scan_time": "Initializing...",
+    "last_result": "24/7 Auto-Pilot loop active"
+}
 
 # Database Helpers
 def load_db():
@@ -67,8 +76,8 @@ def save_db(data):
     with open(DB_FILE, 'w') as f:
         json.dump(data, f, indent=4)
 
-# Bot Execution Logic
-def execute_bot_scan():
+# Core Bot Execution Logic
+def execute_bot_scan(source="Manual"):
     db = load_db()
     today_str = str(datetime.now().date())
     if db.get("last_date") != today_str:
@@ -77,7 +86,10 @@ def execute_bot_scan():
 
     MAX_DAILY = 2
     if db["daily_trades_taken"] >= MAX_DAILY:
-        return {"status": "limit", "message": f"⚠️ Aaj ka limit ({MAX_DAILY} trades) poora ho chuka hai! Kal naye trades milenge."}
+        msg = f"⚠️ Aaj ka daily limit ({MAX_DAILY} trades) poora ho chuka hai! Kal naye trades milenge."
+        autopilot_state["last_result"] = f"Limit Reached ({MAX_DAILY}/2)"
+        autopilot_state["last_scan_time"] = datetime.now().strftime("%H:%M:%S")
+        return {"status": "limit", "message": msg}
 
     trade_taken = False
     executed_coin = ""
@@ -113,10 +125,34 @@ def execute_bot_scan():
             save_db(db)
             break
 
+    autopilot_state["last_scan_time"] = datetime.now().strftime("%H:%M:%S")
+
     if trade_taken:
-        return {"status": "success", "message": f"🎉 Naya Trade Lag Gaya: {executed_coin}! Profit: +${profit_made:.2f} USDT"}
+        msg = f"🎉 Naya Trade Lag Gaya ({source}): {executed_coin}! Profit: +${profit_made:.2f} USDT"
+        autopilot_state["last_result"] = f"Trade Taken: {executed_coin} (+${profit_made:.2f})"
+        return {"status": "success", "message": msg}
     else:
-        return {"status": "no_setup", "message": "Market scan kiya: Abhi kisi coin mein favorable setup nahi mila. Thodi der baad try karein!"}
+        msg = "Market scan kiya: Abhi kisi coin mein favorable setup nahi mila. Thodi der baad try karein!"
+        autopilot_state["last_result"] = "Market scanned: No setup yet"
+        return {"status": "no_setup", "message": msg}
+
+# 24/7 Background Thread Worker (Scans every 15 minutes)
+def background_autopilot_worker():
+    print("🤖 24/7 Background Auto-Pilot Thread Started!")
+    # Initial scan after 10 seconds of startup
+    time.sleep(10)
+    while True:
+        try:
+            if autopilot_state.get("enabled", True):
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] 🤖 Auto-Pilot Scanning Live Binance...")
+                execute_bot_scan(source="Auto-Pilot")
+        except Exception as e:
+            print("Auto-pilot scan error:", str(e))
+        # Sleep for 15 minutes (900 seconds)
+        time.sleep(900)
+
+# Start background thread automatically
+threading.Thread(target=background_autopilot_worker, daemon=True).start()
 
 # HTML Dashboard Page
 def get_html():
@@ -144,20 +180,24 @@ def get_html():
         """
 
     if not trades_html:
-        trades_html = "<div class='card' style='text-align: center; color: #94a3b8;'>Abhi tak koi trade record nahi hai.</div>"
+        trades_html = "<div class='card' style='text-align: center; color: #94a3b8;'>Abhi tak koi trade record nahi hai. Auto-Pilot market scan kar raha hai!</div>"
 
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CryptoBot AI - Member Portal</title>
+    <title>CryptoBot AI - 24/7 Auto-Pilot Platform</title>
     <style>
         * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }}
         body {{ background: #0b0f19; color: #f8fafc; padding: 24px 16px; }}
         .container {{ max-width: 850px; margin: 0 auto; }}
-        .sub-banner {{ background: linear-gradient(90deg, #1e1b4b, #31104b); border: 1px solid #6366f1; border-radius: 14px; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }}
+        .sub-banner {{ background: linear-gradient(90deg, #1e1b4b, #31104b); border: 1px solid #6366f1; border-radius: 14px; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }}
         .btn-sub {{ background: #4f46e5; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }}
+        
+        /* Auto-Pilot Status Banner */
+        .autopilot-banner {{ background: #064e3b; border: 1px solid #059669; border-radius: 12px; padding: 12px 18px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: gap; }}
+        
         .header {{ display: flex; justify-content: space-between; align-items: center; padding-bottom: 20px; border-bottom: 1px solid #1e293b; margin-bottom: 24px; }}
         .logo {{ font-size: 24px; font-weight: 700; color: #38bdf8; }}
         .badge {{ background: #064e3b; color: #34d399; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; border: 1px solid #059669; }}
@@ -179,9 +219,7 @@ def get_html():
         .trade-pnl {{ text-align: right; }}
         .pnl-amount {{ font-size: 17px; font-weight: 700; }}
 
-        /* Profile Avatar & Modal */
-        .profile-btn {{ display: flex; align-items: center; gap: 12px; cursor: pointer; background: transparent; border: none; text-align: left; padding: 4px; border-radius: 10px; transition: 0.2s; }}
-        .profile-btn:hover {{ opacity: 0.9; }}
+        .profile-btn {{ display: flex; align-items: center; gap: 12px; cursor: pointer; background: transparent; border: none; text-align: left; padding: 4px; }}
         .avatar-img {{ width: 44px; height: 44px; border-radius: 50%; border: 2px solid #38bdf8; object-fit: cover; background: #0f172a; }}
         
         .modal {{ display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); justify-content: center; align-items: center; z-index: 100; padding: 16px; overflow-y: auto; }}
@@ -191,7 +229,6 @@ def get_html():
         .btn-primary {{ background: #0284c7; color: white; border: none; width: 100%; padding: 12px; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; }}
         .btn-close {{ background: transparent; color: #94a3b8; border: none; margin-top: 10px; cursor: pointer; font-size: 13px; }}
 
-        /* Auth Screen */
         #authOverlay {{ position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0b0f19; z-index: 99; display: flex; justify-content: center; align-items: center; padding: 16px; }}
         .auth-card {{ background: #131b2e; border: 1px solid #334155; border-radius: 16px; padding: 28px 24px; width: 100%; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); }}
         .auth-tabs {{ display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid #334155; padding-bottom: 12px; }}
@@ -219,7 +256,7 @@ def get_html():
                 <input id="loginEmail" type="email" class="input-box" placeholder="Gmail Address">
                 <input id="loginPassword" type="password" class="input-box" placeholder="Password">
                 <button class="btn-primary" onclick="handleLogin()">🚀 Login to Dashboard</button>
-                <p style="font-size: 11px; color: #64748b; margin-top: 12px; text-align: center;">Owner Login: admin@cryptobot.com / admin123</p>
+                <p style="font-size: 11px; color: #64748b; margin-top: 12px; text-align: center;">Owner: admin@cryptobot.com / admin123</p>
             </div>
 
             <div id="signupForm" style="display: none;">
@@ -233,7 +270,6 @@ def get_html():
     <!-- Main Dashboard -->
     <div class="container" id="mainDashboard" style="display:none;">
         <div class="sub-banner">
-            <!-- Clickable Profile Avatar on Left -->
             <div class="profile-btn" onclick="openProfileModal()" title="Click to edit profile & settings">
                 <div style="position: relative;">
                     <img id="headerAvatarImg" class="avatar-img" src="https://api.dicebear.com/7.x/bottts/svg?seed=CryptoOwner" alt="Avatar">
@@ -254,17 +290,30 @@ def get_html():
             </div>
         </div>
 
+        <!-- 24/7 Cloud Auto-Pilot Banner -->
+        <div class="autopilot-banner">
+            <div>
+                <strong style="color: #a7f3d0; font-size: 14px;">🟢 24/7 Cloud Auto-Pilot Active</strong>
+                <p style="font-size: 12px; color: #d1fae5; margin-top: 2px;">
+                    Background frequency: Every 15 mins • Last scan: <span id="autoLastTime">{autopilot_state['last_scan_time']}</span>
+                </p>
+            </div>
+            <span style="background: #022c22; color: #34d399; border: 1px solid #059669; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 700;">
+                Live Background Loop
+            </span>
+        </div>
+
         <div class="header">
             <div class="logo">⚡ CryptoBot AI Pro</div>
-            <div class="badge">● Bot Ready</div>
+            <div class="badge">● Auto-Pilot Running</div>
         </div>
 
         <div class="action-bar">
             <div>
-                <strong style="font-size: 16px;">Live Market Bot Controller</strong>
-                <p style="font-size: 13px; color: #94a3b8; margin-top: 4px;">BTC, ETH, aur SOL ko real-time scan karke trade execute karein:</p>
+                <strong style="font-size: 16px;">Manual Scan Trigger</strong>
+                <p style="font-size: 13px; color: #94a3b8; margin-top: 4px;">Auto-Pilot chalta rahega, ya aap abhi turant instant scan kar sakte hain:</p>
             </div>
-            <button id="scanBtn" class="btn-scan" onclick="triggerScan()">⚡ Scan Market & Run Bot</button>
+            <button id="scanBtn" class="btn-scan" onclick="triggerScan()">⚡ Instant Scan Now</button>
         </div>
 
         <div class="stats-grid">
@@ -298,7 +347,6 @@ def get_html():
             <h2 style="font-size: 20px; color: #38bdf8; margin-bottom: 4px;">👤 Crypto AI Profile & Settings</h2>
             <p style="font-size: 12px; color: #94a3b8; margin-bottom: 16px;">Manage your personal trading profile and account</p>
 
-            <!-- Profile Picture Upload -->
             <div style="margin-bottom: 16px;">
                 <img id="profileModalAvatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=CryptoOwner" style="width: 72px; height: 72px; border-radius: 50%; border: 3px solid #38bdf8; object-fit: cover; background: #0f172a; display: block; margin: 0 auto 8px;">
                 <label style="background: #334155; color: #e2e8f0; font-size: 12px; padding: 6px 14px; border-radius: 6px; cursor: pointer; display: inline-block;">
@@ -307,7 +355,6 @@ def get_html():
                 </label>
             </div>
 
-            <!-- Profile Fields -->
             <label class="form-label">Full Name</label>
             <input id="profileNameInput" type="text" class="input-box" placeholder="e.g. Md Modassir">
 
@@ -331,7 +378,6 @@ def get_html():
                 <option value="Aggressive (2.5% Target / 1.5% SL)">Aggressive (2.5% Target / 1.5% SL)</option>
             </select>
 
-            <!-- Password Change -->
             <div style="border-top: 1px solid #334155; padding-top: 12px; margin-top: 6px; text-align: left;">
                 <span style="font-size: 13px; font-weight: 700; color: #a5b4fc; display: block; margin-bottom: 8px;">🔐 Change Password (Optional)</span>
                 <label class="form-label">Old Password</label>
@@ -560,7 +606,7 @@ def get_html():
                 window.location.reload();
             }} catch (err) {{
                 alert('Error connecting to bot server!');
-                btn.innerText = '⚡ Scan Market & Run Bot';
+                btn.innerText = '⚡ Instant Scan Now';
                 btn.disabled = false;
             }}
         }}
@@ -672,7 +718,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(res).encode('utf-8'))
 
         elif self.path == '/run-bot':
-            result = execute_bot_scan()
+            result = execute_bot_scan(source="Manual")
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
