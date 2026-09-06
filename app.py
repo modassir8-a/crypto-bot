@@ -176,6 +176,9 @@ def background_autopilot_worker():
 threading.Thread(target=background_autopilot_worker, daemon=True).start()
 
 def get_html():
+    total_p = 1.50
+    admin_s = 0.225
+    user_s = 1.275
     def render_plan_card(plan_id, pdata):
         return f"""
         <div class="card-plan">
