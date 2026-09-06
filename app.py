@@ -955,7 +955,6 @@ def get_html():
                         currentUsdtBal = u.balance || 0.0;
                         currentInrBal = u.inr_balance || 0.0;
                         
-                        // Principal and Current subtract on withdrawal, but lifetime PnL & E.PnL persist! (Screenshot 68)
                         const lifetimePnl = u.total_profit || 0.0;
                         const principalBal = u.principal || currentUsdtBal;
                         origValues.principal = principalBal.toFixed(2) + ' USDT';
@@ -974,10 +973,7 @@ def get_html():
                     
                     updateSwapDisplay();
 
-                    // Render User-Specific Trades
                     renderUserTrades(data.trades || []);
-
-                    // Render User-Specific Wallet Activities
                     renderPersonalActivity(data.activity || []);
 
                     const activePlan = u.plan;
@@ -1595,7 +1591,6 @@ def get_html():
             const data = await res.json();
             if (data.status === 'success') {{
                 localStorage.setItem('cryptobot_user_email', email);
-                // Trigger Creddx Signing in Screen!
                 document.getElementById('authOverlay').style.display = 'none';
                 document.getElementById('signingInOverlay').style.display = 'flex';
                 setTimeout(() => {{
@@ -1618,7 +1613,6 @@ def get_html():
             const data = await res.json();
             if (data.status === 'success') {{
                 localStorage.setItem('cryptobot_user_email', email);
-                // Trigger Creddx Signing in Screen!
                 document.getElementById('authOverlay').style.display = 'none';
                 document.getElementById('signingInOverlay').style.display = 'flex';
                 setTimeout(() => {{
@@ -1696,7 +1690,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 users = db.get("users", {})
                 user = users.get(email)
 
-                # Strict Password Check
                 if not user:
                     res = {"status": "error", "message": "❌ Yeh email registered nahi hai! Kripya pehle Sign Up karein."}
                 elif user.get("password") != password:
@@ -1715,7 +1708,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
             db = load_db()
             users = db.setdefault("users", {})
 
-            # Strict: Block Duplicate Signup for ANY already registered email
             if email in users or email == 'admin@cryptobot.com':
                 res = {"status": "error", "message": "⚠️ Yeh email pehle se registered hai! Kripya Login karein."}
             else:
@@ -1791,7 +1783,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     "is_admin": False,
                     "uid": get_user_uid(email)
                 })
-                # Customer sees ONLY their own trades (never admin's)
                 user_trades = user.get("trades", [])
 
             self.send_response(200)
@@ -1954,7 +1945,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         db["balance"] -= usdt_needed
                     else:
                         db["users"][email]["balance"] -= usdt_needed
-                        # Deduct principal proportionally, but lifetime PnL remains intact! (Screenshot 68)
                         db["users"][email]["principal"] = max(0.0, db["users"][email].get("principal", 0.0) - usdt_needed)
 
                     now = datetime.now()
